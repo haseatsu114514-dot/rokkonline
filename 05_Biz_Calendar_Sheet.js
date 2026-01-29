@@ -249,6 +249,25 @@ function notifySheetUpsert_(res) {
       }),
       muteHttpExceptions: true,
     });
+
+    // レスポンス確認
+    const code = res.getResponseCode();
+    const content = res.getContentText();
+
+    if (code !== 200) {
+      console.error(`Sheet API HTTP Error (${code}):`, content);
+      return;
+    }
+
+    // JSONパースして論理エラー確認
+    try {
+      const result = JSON.parse(content);
+      if (!result.ok) {
+        console.error("Sheet API Logical Error:", result);
+      }
+    } catch (e) {
+      console.error("Sheet API Response Parse Error:", content);
+    }
   } catch (e) {
     console.error("notifySheetUpsert_ error:", e);
   }
