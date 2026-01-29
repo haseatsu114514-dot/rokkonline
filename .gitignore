@@ -1,0 +1,7 @@
+node_modules/
+package-lock.json
+package.json
+*.js
+!check_deployment.js
+!00_Config.js
+!appsscript.json
