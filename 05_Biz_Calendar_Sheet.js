@@ -10,7 +10,7 @@ function isSlotFree_(start, end, eventsCache) {
   try {
     const from = new Date(start.getTime() - INTERVAL_MIN * 60000);
     const to = new Date(end.getTime() + INTERVAL_MIN * 60000);
-    
+
     // キャッシュがあればAPI呼び出しをスキップ
     if (eventsCache && Array.isArray(eventsCache)) {
       for (const ev of eventsCache) {
@@ -23,7 +23,7 @@ function isSlotFree_(start, end, eventsCache) {
       }
       return true;
     }
-    
+
     // キャッシュがなければ従来通りAPI呼び出し
     const cal = CalendarApp.getCalendarById(CALENDAR_ID);
     return cal.getEvents(from, to).length === 0;
@@ -38,11 +38,11 @@ function getDayEvents_(dateYMD) {
   try {
     const ymd = String(dateYMD || "").trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return [];
-    
+
     const [y, m, d] = ymd.split("-").map(Number);
     const dayStart = new Date(y, m - 1, d, 0, 0, 0);
     const dayEnd = new Date(y, m - 1, d, 23, 59, 59);
-    
+
     const cal = CalendarApp.getCalendarById(CALENDAR_ID);
     return cal.getEvents(dayStart, dayEnd);
   } catch (e) {
@@ -174,6 +174,12 @@ function updateCalendarEventTitle_(r) {
         title.includes(r.key);
 
       if (!hit) return;
+
+      // ★改修：キャンセル・期限切れの場合はカレンダーから削除（枠を空ける）
+      if (r.status === ST_CANCELLED || r.status === ST_EXPIRED) {
+        ev.deleteEvent();
+        return;
+      }
 
       ev.setTitle(buildEventTitleJP_(r));
       ev.setDescription(buildEventDescJP_(r));
@@ -317,29 +323,30 @@ function autoClosePastReservationForUser_(userId) {
       r.status = ST_DONE;
       r.updatedAtISO = nowISO_();
       saveReservation_(r.key, r);
-      try { notifySheetUpsert_(r); } catch(e) {}
-      try { updateCalendarEventTitle_(r); } catch(e) {}
+      try { notifySheetUpsert_(r); } catch (e) { }
+      try { updateCalendarEventTitle_(r); } catch (e) { }
     }
   }
 }
 
 // ★★★ 予約状況API用：特定の部の空き状況を判定（修正版） ★★★
-function getPartAvailability_(partLabel, dateYMD) {
+// ★改修：eventsCache対応で高速化
+function getPartAvailability_(partLabel, dateYMD, eventsCache) {
   const part = PARTS[partLabel];
   if (!part) {
     return { status: "full", count: 0 };
   }
-  
+
   const ymd = String(dateYMD || "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
     return { status: "full", count: 0 };
   }
-  
+
   const [y, m, d] = ymd.split("-").map(Number);
   // タイムゾーンを考慮してbaseを作成（日本時間）
   const baseStr = ymd + " 00:00:00";
   const base = Utilities.parseDate(baseStr, TZ, "yyyy-MM-dd HH:mm:ss");
-  
+
   // ★★★ 当日の時刻判定（日本時間） ★★★
   const now = new Date();
   const nowStr = Utilities.formatDate(now, TZ, "yyyy-MM-dd HH:mm:ss");
@@ -347,7 +354,7 @@ function getPartAvailability_(partLabel, dateYMD) {
   const baseDateStr = Utilities.formatDate(base, TZ, "yyyy-MM-dd");
   const nowDateStr = Utilities.formatDate(nowJST, TZ, "yyyy-MM-dd");
   const isToday = (baseDateStr === nowDateStr);
-  
+
   if (isToday) {
     // 部の終了時刻を過ぎていたら終了
     const [eh, em] = part.end.split(":").map(Number);
@@ -355,29 +362,32 @@ function getPartAvailability_(partLabel, dateYMD) {
     const emStr = (em < 10 ? "0" : "") + em;
     const partEndTimeStr = ymd + " " + ehStr + ":" + emStr + ":00";
     const partEndTime = Utilities.parseDate(partEndTimeStr, TZ, "yyyy-MM-dd HH:mm:ss");
-    
+
     if (nowJST >= partEndTime) {
       return { status: "full", count: 0 };
     }
   }
-  
+
   const [sh, sm] = part.start.split(":").map(Number);
   const [eh, em] = part.end.split(":").map(Number);
-  
+
   const shStr = (sh < 10 ? "0" : "") + sh;
   const smStr = (sm < 10 ? "0" : "") + sm;
   const ehStr = (eh < 10 ? "0" : "") + eh;
   const emStr = (em < 10 ? "0" : "") + em;
-  
+
   const startBaseStr = ymd + " " + shStr + ":" + smStr + ":00";
   const endLimitStr = ymd + " " + ehStr + ":" + emStr + ":00";
   const startBase = Utilities.parseDate(startBaseStr, TZ, "yyyy-MM-dd HH:mm:ss");
   const endLimit = Utilities.parseDate(endLimitStr, TZ, "yyyy-MM-dd HH:mm:ss");
-  
+
   // 30分刻みで空き枠をカウント
   let count = 0;
   const minMinutes = 30;
-  
+
+  // もしキャッシュが渡されていなければ内部で取得（後方互換）
+  const cache = eventsCache || getDayEvents_(ymd);
+
   for (let t = new Date(startBase); t < endLimit; t = new Date(t.getTime() + SLOT_STEP_MIN * 60000)) {
     // ★★★ 修正：各スロットの開始時刻の5時間前をチェック（日本時間） ★★★
     if (isToday) {
@@ -390,15 +400,15 @@ function getPartAvailability_(partLabel, dateYMD) {
         continue;
       }
     }
-    
+
     const end = new Date(t.getTime() + minMinutes * 60000);
     if (end > endLimit) continue;
-    
-    if (isSlotFree_(t, end)) {
+
+    if (isSlotFree_(t, end, cache)) {
       count++;
     }
   }
-  
+
   // ステータス判定
   let status;
   if (count >= 3) {
@@ -408,6 +418,6 @@ function getPartAvailability_(partLabel, dateYMD) {
   } else {
     status = "full";
   }
-  
+
   return { status, count };
 }

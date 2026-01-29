@@ -36,7 +36,7 @@ function doGet(e) {
   if (!e || !e.parameter) {
     return ContentService.createTextOutput("OK");
   }
-  
+
   // フォーム短縮URLリダイレクト（既存機能）
   const f = e.parameter.f ? String(e.parameter.f).trim() : "";
   if (f) {
@@ -45,13 +45,13 @@ function doGet(e) {
       `<html><head><meta http-equiv="refresh" content="0; url=${url}"></head><body></body></html>`
     );
   }
-  
+
   // ★★★ 予約状況API（日付パラメータ対応 + キャッシュ対応 + 0時切り替え対応） ★★★
   const action = e.parameter.action ? String(e.parameter.action).trim() : "";
   if (action === "getTodayAvailability") {
     return handleGetTodayAvailability_(e);
   }
-  
+
   return ContentService.createTextOutput("OK");
 }
 
@@ -69,64 +69,50 @@ function handleGetTodayAvailability_(e) {
     const now = new Date();
     const currentHour = now.getHours();
     const currentMinute = now.getMinutes();
-    
+
     // 21:30〜23:59のみ翌日表示（0:00以降は本日）
     const isAfter2130 = (currentHour === 21 && currentMinute >= 30) || (currentHour >= 22 && currentHour <= 23);
-    const cacheKey = isAfter2130 ? 'availability_cache_next' : 'availability_cache_today';
-    
-    const cache = CacheService.getScriptCache();
-    const cached = cache.get(cacheKey);
-    
-    if (cached) {
-      return ContentService.createTextOutput(cached)
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-    
+    // キャッシュ廃止（常に最新データを取得）
+
     // ★★★ 日付パラメータ処理 ★★★
     let dateYMD = e.parameter.date ? String(e.parameter.date).trim() : "";
-    
+
     if (!dateYMD || !/^\d{4}-\d{2}-\d{2}$/.test(dateYMD)) {
       dateYMD = Utilities.formatDate(now, TZ, "yyyy-MM-dd");
     }
-    
+
     // ★★★ 21:30〜23:59のみ翌日表示（0:00以降は本日） ★★★
     if (isAfter2130 && !e.parameter.date) {
       const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
       dateYMD = Utilities.formatDate(tomorrow, TZ, "yyyy-MM-dd");
     }
-    
+
     const tag = isAfter2130 ? "【翌日】" : "【本日】";
-    
+
+    // ★一括取得：1回のAPI呼び出しで1日分のイベントを取得
+    const eventsCache = getDayEvents_(dateYMD);
+
     const result = {
       date: dateYMD,
       tag: tag,
       parts: {
-        "昼の部": getPartAvailability_("昼の部", dateYMD),
-        "夕の部": getPartAvailability_("夕の部", dateYMD),
-        "夜の部": getPartAvailability_("夜の部", dateYMD)
+        "昼の部": getPartAvailability_("昼の部", dateYMD, eventsCache),
+        "夕の部": getPartAvailability_("夕の部", dateYMD, eventsCache),
+        "夜の部": getPartAvailability_("夜の部", dateYMD, eventsCache)
       },
       updated: new Date().toISOString()
     };
-    
+
     const resultJson = JSON.stringify(result);
-    
-    // ★★★ キャッシュ時間を調整（0時近くは短く） ★★★
-    let cacheDuration = 60; // デフォルト60秒
-    if (currentHour === 23 && currentMinute >= 50) {
-      // 23:50以降は10秒だけキャッシュ（0時で確実に切り替わるように）
-      cacheDuration = 10;
-    }
-    
-    cache.put(cacheKey, resultJson, cacheDuration);
-    
+
     return ContentService.createTextOutput(resultJson)
       .setMimeType(ContentService.MimeType.JSON);
-      
+
   } catch (error) {
     console.error("getTodayAvailability error:", error);
-    
+
     const fallbackDate = Utilities.formatDate(new Date(), TZ, "yyyy-MM-dd");
-    
+
     const fallback = {
       date: fallbackDate,
       tag: "【本日】",
@@ -137,7 +123,7 @@ function handleGetTodayAvailability_(e) {
       },
       error: error.toString()
     };
-    
+
     return ContentService.createTextOutput(JSON.stringify(fallback))
       .setMimeType(ContentService.MimeType.JSON);
   }
@@ -268,17 +254,18 @@ function setFormReceivedByKey_(key, payMethod) {
       : "次：当日集合（案内送信済み）")
   );
 
-  try { notifySheetUpsert_(r); } catch(e) {}
-  try { updateCalendarEventTitle_(r); } catch(e) {}
+  try { notifySheetUpsert_(r); } catch (e) { }
+  try { updateCalendarEventTitle_(r); } catch (e) { }
 
   if (r.format === "ONLINE") {
     if (r.payMethod === "現金（対面鑑定のみ）") {
       push_(r.userId, [
-        { type: "text", text:
-          "フォームのご回答を確認しました。ありがとうございます。\n\n" +
-          "⚠️ 支払い方法が「現金（対面鑑定のみ）」になっていました。\n" +
-          "オンライン鑑定は【PayPay / 振込】でのお支払いをお願いします。\n\n" +
-          "どちらに変更しますか？"
+        {
+          type: "text", text:
+            "フォームのご回答を確認しました。ありがとうございます。\n\n" +
+            "⚠️ 支払い方法が「現金（対面鑑定のみ）」になっていました。\n" +
+            "オンライン鑑定は【PayPay / 振込】でのお支払いをお願いします。\n\n" +
+            "どちらに変更しますか？"
         },
         buildButtonsMessage_("【支払い方法】", [
           { label: "PayPayに変更", text: "支払い方法をPayPayに変更" },
@@ -355,8 +342,8 @@ function markPaidConfirmedByKey_(key) {
     price: r.price
   });
 
-  try { notifySheetUpsert_(r); } catch(e) {}
-  try { updateCalendarEventTitle_(r); } catch(e) {}
+  try { notifySheetUpsert_(r); } catch (e) { }
+  try { updateCalendarEventTitle_(r); } catch (e) { }
 
   notifyAdmin_("【入金確認済み】\n" + buildAdminSummary_(r));
 }
@@ -393,8 +380,8 @@ function cancelActiveReservation_(userId) {
   active.status = ST_EXPIRED;
   active.updatedAtISO = nowISO_();
   saveReservation_(active.key, active);
-  try { notifySheetUpsert_(active); } catch(e) {}
-  try { updateCalendarEventTitle_(active); } catch(e) {}
+  try { notifySheetUpsert_(active); } catch (e) { }
+  try { updateCalendarEventTitle_(active); } catch (e) { }
 
   return true;
 }
@@ -419,13 +406,13 @@ function cancelReservationByUser_(r) {
         break;
       }
     }
-  } catch (_) {}
+  } catch (_) { }
 
   r.status = ST_CANCELLED;
   r.updatedAtISO = nowISO_();
   saveReservation_(r.key, r);
-  try { notifySheetUpsert_(r); } catch (_) {}
-  try { updateCalendarEventTitle_(r); } catch (_) {}
+  try { notifySheetUpsert_(r); } catch (_) { }
+  try { updateCalendarEventTitle_(r); } catch (_) { }
 }
 
 // ===================================================
@@ -484,8 +471,8 @@ function handlePaymentCommands_(userId, token, text) {
     "次：入金確認→（確認したら）MARK_PAID_CONFIRMED"
   );
 
-  try { notifySheetUpsert_(r); } catch(e) {}
-  try { updateCalendarEventTitle_(r); } catch(e) {}
+  try { notifySheetUpsert_(r); } catch (e) { }
+  try { updateCalendarEventTitle_(r); } catch (e) { }
 
   replyText_(token, buildOnlineAfterPaidReportText_(r));
   return true;

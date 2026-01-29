@@ -6,9 +6,9 @@
 // UI: 戻る（中止は無し）
 // ===================================================
 const BACK_TO_FORMAT = "戻る（形式へ）";
-const BACK_TO_MIN    = "戻る（鑑定分数へ）";  // 分数が先になった
-const BACK_TO_DATE   = "戻る（日付へ）";
-const BACK_TO_PART   = "戻る（時間帯へ）";
+const BACK_TO_MIN = "戻る（鑑定分数へ）";  // 分数が先になった
+const BACK_TO_DATE = "戻る（日付へ）";
+const BACK_TO_PART = "戻る（時間帯へ）";
 
 // 時間帯ページ送り（Buttons 4個制限対策）
 const PART_NEXT = "__PART_NEXT__";
@@ -155,7 +155,7 @@ function getAvailablePartsForDate_(format, dateYMD, minutes) {
   // 分数指定がなければ30分で判定
   const checkMinutes = minutes || 30;
   const labels = [];
-  
+
   // ★一括取得：1回のAPI呼び出しで1日分のイベントを取得
   const eventsCache = getDayEvents_(ymd);
 
@@ -167,7 +167,7 @@ function getAvailablePartsForDate_(format, dateYMD, minutes) {
     const [eh, em] = part.end.split(":").map(Number);
 
     const startBase = new Date(base); startBase.setHours(sh, sm, 0, 0);
-    const endLimit  = new Date(base); endLimit.setHours(eh, em, 0, 0);
+    const endLimit = new Date(base); endLimit.setHours(eh, em, 0, 0);
 
     let ok = false;
     for (let t = new Date(startBase); t < endLimit; t = new Date(t.getTime() + SLOT_STEP_MIN * 60000)) {
@@ -192,7 +192,7 @@ function getAvailablePartsForDate_(format, dateYMD, minutes) {
 function askPart_(token, userId, dateYMD, format) {
   const st = getState_(userId) || {};
   const minutes = Number(st.minutes) || 30;
-  
+
   const available = getAvailablePartsForDate_(format, dateYMD, minutes);
   if (!available.length) {
     return replyButtons_(
@@ -246,7 +246,7 @@ function getAvailableMinutesForPart_NoCross_(st) {
   const [eh, em] = part.end.split(":").map(Number);
 
   const startBase = new Date(base); startBase.setHours(sh, sm, 0, 0);
-  const endLimit  = new Date(base); endLimit.setHours(eh, em, 0, 0);
+  const endLimit = new Date(base); endLimit.setHours(eh, em, 0, 0);
 
   const options = [30, 45, 60, 75, 90];
   const okSet = new Set();
@@ -273,10 +273,10 @@ function getAvailableMinutesForPart_NoCross_(st) {
 function askMinutes_(token, userId) {
   const st = getState_(userId) || {};
   const isInperson = st.format === "INPERSON";
-  
+
   // 全ての分数オプションを表示（後で日付・部で絞る）
   const options = [30, 45, 60, 75, 90];
-  
+
   const labels = options.map((mins) => {
     const basePrice = PRICE_TABLE[mins];
     const price = isInperson ? (basePrice + INPERSON_EXTRA) : basePrice;
@@ -284,7 +284,7 @@ function askMinutes_(token, userId) {
   });
   labels.push(BACK_TO_FORMAT);
 
-  const extraNote = isInperson 
+  const extraNote = isInperson
     ? "\n※対面鑑定は+500円です"
     : "";
 
@@ -404,12 +404,12 @@ function handleLineEvent_(ev) {
     if (!r) {
       return replyButtons_(token, "対象の予約が見つかりませんでした。", [{ label: CMD_START, text: CMD_START }]);
     }
-    
+
     // 確定済み予約（支払い待ち、支払い報告済み、対面確定）のみ変更可能
     if (![ST_WAIT_PAY, ST_PAID_REPORTED, ST_INPERSON_FIXED].includes(r.status)) {
       return replyText_(token, "現在の予約状態では日時変更ができません。\nお問い合わせください。");
     }
-    
+
     return replyQuickReply_(token,
       "現在の予約はいったん無効にして、新しく予約を取り直す形になります。\nよろしいですか？",
       [CMD_CHANGE_DATE_YES, CMD_CHANGE_DATE_NO]
@@ -422,7 +422,7 @@ function handleLineEvent_(ev) {
     if (!r) {
       return replyButtons_(token, "対象の予約が見つかりませんでした。", [{ label: CMD_START, text: CMD_START }]);
     }
-    
+
     // カレンダーから削除
     try {
       const cal = CalendarApp.getCalendarById(CALENDAR_ID);
@@ -440,14 +440,14 @@ function handleLineEvent_(ev) {
           break;
         }
       }
-    } catch (_) {}
-    
+    } catch (_) { }
+
     // 予約をキャンセル状態に
     r.status = ST_CANCELLED;
     r.updatedAtISO = nowISO_();
     saveReservation_(r.key, r);
-    try { notifySheetUpsert_(r); } catch (_) {}
-    
+    try { notifySheetUpsert_(r); } catch (_) { }
+
     // ログ
     logToSheet_({
       ts: new Date().toISOString(),
@@ -457,7 +457,7 @@ function handleLineEvent_(ev) {
       format: r.format,
       date: r.dateYMD
     });
-    
+
     // 管理者通知
     notifyAdmin_(
       "【日時変更】\n" +
@@ -465,9 +465,9 @@ function handleLineEvent_(ev) {
       buildAdminSummary_(r) + "\n" +
       "→ 旧予約をキャンセル済み"
     );
-    
+
     resetState_(userId);
-    
+
     return replyButtons_(
       token,
       "予約を取り消しました。\n\n「鑑定予約」から新しい日時を選んでください。",
@@ -642,7 +642,7 @@ function handleLineEvent_(ev) {
   // ③ 分数 → 日付へ
   if (st.step === "分数") {
     const minutes = pickMinutesFromText_(text);
-    if ([30,45,60,75,90].includes(minutes)) {
+    if ([30, 45, 60, 75, 90].includes(minutes)) {
       const isInperson = st.format === "INPERSON";
       const price = isInperson ? (PRICE_TABLE[minutes] + INPERSON_EXTRA) : PRICE_TABLE[minutes];
       setState_(userId, { minutes, price, step: "日付" });
@@ -779,16 +779,22 @@ function handleLineEvent_(ev) {
       });
 
       // ★改修：管理者通知（一時確保）
+      // タイトル「【一時確保】」は buildAdminSummary_ 内に含まれるので削除
       notifyAdmin_(
-        "【一時確保】\n" +
         buildAdminSummary_(res) + "\n" +
         `有効期限：${fmtHM_(expiresAt)}`
       );
 
-      // ★改修：一時確保メッセージの強調表現
+      // ★改修：一時確保メッセージの強調表現（詳細情報を追加）
+      const detailInfo =
+        `日時：${formatRangeText_(res)}\n` +
+        `料金：${fmtYen_(res.price)}` +
+        (res.area ? `\nエリア：${res.area}` : "");
+
       const shortUrl = buildShortFormUrl_(key);
       pushQuickReply_(userId,
-        "⏳【一時確保中】重要なお知らせ\n" +
+        "⏳【一時確保中】重要なお知らせ\n\n" +
+        detailInfo + "\n\n" +
         "下のフォーム送信で予約が確定します。\n\n" +
         "━━━━━━━━━━━━━━\n" +
         "有効期限までにフォーム送信が必要です\n" +
@@ -801,8 +807,8 @@ function handleLineEvent_(ev) {
         ]
       );
 
-      try { notifySheetUpsert_(res); } catch(e) {}
-      try { updateCalendarEventTitle_(res); } catch(e) {}
+      try { notifySheetUpsert_(res); } catch (e) { }
+      try { updateCalendarEventTitle_(res); } catch (e) { }
 
       resetState_(userId);
       return;
