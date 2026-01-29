@@ -5,11 +5,50 @@
 // ---- Calendar ----
 
 // 空き判定（前後INTERVAL_MINバッファ込み）
-function isSlotFree_(start, end) {
-  const cal = CalendarApp.getCalendarById(CALENDAR_ID);
-  const from = new Date(start.getTime() - INTERVAL_MIN * 60000);
-  const to = new Date(end.getTime() + INTERVAL_MIN * 60000);
-  return cal.getEvents(from, to).length === 0;
+// ★改修：eventsCache引数追加で一括取得対応、try-catch追加
+function isSlotFree_(start, end, eventsCache) {
+  try {
+    const from = new Date(start.getTime() - INTERVAL_MIN * 60000);
+    const to = new Date(end.getTime() + INTERVAL_MIN * 60000);
+    
+    // キャッシュがあればAPI呼び出しをスキップ
+    if (eventsCache && Array.isArray(eventsCache)) {
+      for (const ev of eventsCache) {
+        const evStart = ev.getStartTime();
+        const evEnd = ev.getEndTime();
+        // イベントが時間範囲と重なるかチェック
+        if (evStart < to && evEnd > from) {
+          return false;
+        }
+      }
+      return true;
+    }
+    
+    // キャッシュがなければ従来通りAPI呼び出し
+    const cal = CalendarApp.getCalendarById(CALENDAR_ID);
+    return cal.getEvents(from, to).length === 0;
+  } catch (e) {
+    console.log("isSlotFree_ error:", e);
+    return false; // エラー時は空きなしとして安全側に倒す
+  }
+}
+
+// ★追加：1日分のイベントを一括取得（パフォーマンス改善）
+function getDayEvents_(dateYMD) {
+  try {
+    const ymd = String(dateYMD || "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return [];
+    
+    const [y, m, d] = ymd.split("-").map(Number);
+    const dayStart = new Date(y, m - 1, d, 0, 0, 0);
+    const dayEnd = new Date(y, m - 1, d, 23, 59, 59);
+    
+    const cal = CalendarApp.getCalendarById(CALENDAR_ID);
+    return cal.getEvents(dayStart, dayEnd);
+  } catch (e) {
+    console.log("getDayEvents_ error:", e);
+    return [];
+  }
 }
 
 // ステータス→色
@@ -146,6 +185,7 @@ function updateCalendarEventTitle_(r) {
 }
 
 // ---- 候補計算 ----
+// ★改修：一括取得対応でパフォーマンス改善
 function computeCandidateSlots_(st) {
   const part = PARTS[st.partLabel || ""];
   if (!part || !st.minutes || !st.dateYMD) return [];
@@ -165,6 +205,9 @@ function computeCandidateSlots_(st) {
     sameDayLimit = new Date(Date.now() + SAME_DAY_LIMIT_HOURS * 3600000);
   }
 
+  // ★一括取得：1回のAPI呼び出しで1日分のイベントを取得
+  const eventsCache = getDayEvents_(ymd);
+
   const out = [];
   for (let t = new Date(startBase); t < endLimit; t = new Date(t.getTime() + SLOT_STEP_MIN * 60000)) {
     if (sameDayLimit && t < sameDayLimit) continue;
@@ -172,7 +215,7 @@ function computeCandidateSlots_(st) {
     const end = new Date(t.getTime() + st.minutes * 60000);
     if (end > endLimit) continue;
 
-    if (isSlotFree_(t, end)) out.push(new Date(t));
+    if (isSlotFree_(t, end, eventsCache)) out.push(new Date(t));
   }
   return out;
 }

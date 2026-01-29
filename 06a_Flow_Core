@@ -181,8 +181,7 @@ function buildAdminSummary_(r) {
   return (
     `【${r.status}】${fmt}${area}\n` +
     `日時：${formatRangeText_(r)}\n` +
-    `料金：${fmtYen_(r.price)}\n` +
-    `key：${r.key}`
+    `料金：${fmtYen_(r.price)}`
   );
 }
 
@@ -296,6 +295,7 @@ function setFormReceivedByKey_(key, payMethod) {
       "\n━━━━━━━━━━━━━━",
       [
         { type: "message", label: "支払い報告", text: CMD_PAID_REPORT },
+        { type: "message", label: "日時を変更する", text: CMD_CHANGE_DATE },
         { type: "message", label: "問い合わせる", text: CMD_INQUIRY },
       ]
     );
@@ -323,7 +323,10 @@ function setFormReceivedByKey_(key, payMethod) {
 
   pushQuickReply_(r.userId,
     "ご不明点があればこちらからご連絡ください。",
-    [{ type: "message", label: "問い合わせる", text: CMD_INQUIRY }]
+    [
+      { type: "message", label: "日時を変更する", text: CMD_CHANGE_DATE },
+      { type: "message", label: "問い合わせる", text: CMD_INQUIRY },
+    ]
   );
 
   notifyAdmin_("【対面予約確定】\n" + buildAdminSummary_(r));

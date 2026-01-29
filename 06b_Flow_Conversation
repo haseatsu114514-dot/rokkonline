@@ -6,9 +6,9 @@
 // UI: 戻る（中止は無し）
 // ===================================================
 const BACK_TO_FORMAT = "戻る（形式へ）";
+const BACK_TO_MIN    = "戻る（鑑定分数へ）";  // 分数が先になった
 const BACK_TO_DATE   = "戻る（日付へ）";
 const BACK_TO_PART   = "戻る（時間帯へ）";
-const BACK_TO_MIN    = "戻る（鑑定分数へ）";
 
 // 時間帯ページ送り（Buttons 4個制限対策）
 const PART_NEXT = "__PART_NEXT__";
@@ -137,9 +137,10 @@ function pickYMDFromDateQuick_(userId, labelText) {
 }
 
 // ===================================================
-// レベル2：カレンダー参照込みで「空きがある部だけ」返す
+// レベル2：カレンダー参照込みで「指定分数の空きがある部だけ」返す
+// ★改修：一括取得対応でパフォーマンス改善
 // ===================================================
-function getAvailablePartsForDate_(format, dateYMD) {
+function getAvailablePartsForDate_(format, dateYMD, minutes) {
   const ymd = String(dateYMD || "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return [];
 
@@ -151,8 +152,12 @@ function getAvailablePartsForDate_(format, dateYMD) {
     sameDayLimit = new Date(Date.now() + SAME_DAY_LIMIT_HOURS * 3600000);
   }
 
-  const minMinutes = 30;
+  // 分数指定がなければ30分で判定
+  const checkMinutes = minutes || 30;
   const labels = [];
+  
+  // ★一括取得：1回のAPI呼び出しで1日分のイベントを取得
+  const eventsCache = getDayEvents_(ymd);
 
   Object.keys(PARTS).forEach((lab) => {
     const part = PARTS[lab];
@@ -168,10 +173,10 @@ function getAvailablePartsForDate_(format, dateYMD) {
     for (let t = new Date(startBase); t < endLimit; t = new Date(t.getTime() + SLOT_STEP_MIN * 60000)) {
       if (sameDayLimit && t < sameDayLimit) continue;
 
-      const end = new Date(t.getTime() + minMinutes * 60000);
+      const end = new Date(t.getTime() + checkMinutes * 60000);
       if (end > endLimit) continue;
 
-      if (isSlotFree_(t, end)) { ok = true; break; }
+      if (isSlotFree_(t, end, eventsCache)) { ok = true; break; }
     }
 
     if (ok) labels.push(lab);
@@ -182,18 +187,21 @@ function getAvailablePartsForDate_(format, dateYMD) {
 
 // ===================================================
 // 部（時間帯）: Buttons
+// ★改修：ステートから分数を取得し、その分数に対応できる部のみ表示
 // ===================================================
 function askPart_(token, userId, dateYMD, format) {
-  const available = getAvailablePartsForDate_(format, dateYMD);
+  const st = getState_(userId) || {};
+  const minutes = Number(st.minutes) || 30;
+  
+  const available = getAvailablePartsForDate_(format, dateYMD, minutes);
   if (!available.length) {
     return replyButtons_(
       token,
-      "この日付は受付できる時間帯がありませんでした。",
+      "この日付は受付できる時間帯がありませんでした。\n別の日付をお試しください。",
       [{ label: BACK_TO_DATE, text: BACK_TO_DATE }]
     );
   }
 
-  const st = getState_(userId) || {};
   const page = Number(st.partPage || 0);
 
   const pageSize = 3;
@@ -212,7 +220,7 @@ function askPart_(token, userId, dateYMD, format) {
     token,
     "【時間帯】\n時間帯を選んでください。\n\n" +
     lines + "\n\n" +
-    "※終了時間が次の部にかかる鑑定分数は表示しません。",
+    `※選択中の鑑定分数：${minutes}分`,
     actions.slice(0, 4)
   );
 }
@@ -260,26 +268,30 @@ function getAvailableMinutesForPart_NoCross_(st) {
 
 // ===================================================
 // 鑑定分数（QuickReply）
+// ★改修：新フロー対応。形式選択後すぐに分数を聞く。
 // ===================================================
 function askMinutes_(token, userId) {
   const st = getState_(userId) || {};
-  const avail = getAvailableMinutesForPart_NoCross_(st);
+  const isInperson = st.format === "INPERSON";
+  
+  // 全ての分数オプションを表示（後で日付・部で絞る）
+  const options = [30, 45, 60, 75, 90];
+  
+  const labels = options.map((mins) => {
+    const basePrice = PRICE_TABLE[mins];
+    const price = isInperson ? (basePrice + INPERSON_EXTRA) : basePrice;
+    return `${mins}分（${fmtYen_(price)}）`;
+  });
+  labels.push(BACK_TO_FORMAT);
 
-  if (!avail.length) {
-    return replyButtons_(
-      token,
-      "この時間帯では選べる鑑定分数がありませんでした。\n別の時間帯をお試しください。",
-      [{ label: BACK_TO_PART, text: BACK_TO_PART }]
-    );
-  }
-
-  const labels = avail.map((mins) => `${mins}分（${fmtYen_(PRICE_TABLE[mins])}）`);
-  labels.push(BACK_TO_PART);
+  const extraNote = isInperson 
+    ? "\n※対面鑑定は+500円です"
+    : "";
 
   return replyQuickReplyWithHeader_(
     token,
     "【鑑定分数】",
-    "鑑定分数を選んでください。\n※終了時間が次の部にかかる鑑定分数は表示しません。",
+    "鑑定分数を選んでください。" + extraNote,
     labels
   );
 }
@@ -330,8 +342,8 @@ function replySlotQuickReply_(token, userId, showTakenNotice) {
 
     return replyButtons_(
       token,
-      "この条件では空き枠が見つかりませんでした。\n日付／時間帯／鑑定分数を変えてお試しください。",
-      [{ label: BACK_TO_MIN, text: BACK_TO_MIN }]
+      "この条件では空き枠が見つかりませんでした。\n日付／時間帯を変えてお試しください。",
+      [{ label: BACK_TO_PART, text: BACK_TO_PART }]
     );
   }
 
@@ -343,7 +355,7 @@ function replySlotQuickReply_(token, userId, showTakenNotice) {
     : "";
 
   const labels = slotList.map((x) => x.hm);
-  labels.push(BACK_TO_MIN);
+  labels.push(BACK_TO_PART);
 
   const priceLine = (st && st.minutes && st.price)
     ? `料金：${st.minutes}分 ${Number(st.price).toLocaleString("ja-JP")}円\n\n`
@@ -355,21 +367,6 @@ function replySlotQuickReply_(token, userId, showTakenNotice) {
     priceLine + head + "開始時刻を選んでください。",
     labels
   );
-}
-
-// ===================================================
-// 鑑定分数→料金算出→空き枠へ
-// ===================================================
-function onMinutesPicked_(token, userId, minutes) {
-  const st = getState_(userId);
-  const base = PRICE_TABLE[minutes];
-  if (!base) return replyText_(token, "表示された候補から選んでください。");
-
-  const isInperson = st.format === "INPERSON";
-  const price = isInperson ? (base + INPERSON_EXTRA) : base;
-
-  setState_(userId, { minutes, price, step: "空き枠" });
-  return replySlotQuickReply_(token, userId, false);
 }
 
 // ===================================================
@@ -399,6 +396,88 @@ function handleLineEvent_(ev) {
   // ★改修：問い合わせボタン
   if (text === CMD_INQUIRY) {
     return handleInquiry_(token, userId);
+  }
+
+  // ★追加：日時変更ボタン
+  if (text === CMD_CHANGE_DATE) {
+    const r = getActiveReservationForUser_(userId);
+    if (!r) {
+      return replyButtons_(token, "対象の予約が見つかりませんでした。", [{ label: CMD_START, text: CMD_START }]);
+    }
+    
+    // 確定済み予約（支払い待ち、支払い報告済み、対面確定）のみ変更可能
+    if (![ST_WAIT_PAY, ST_PAID_REPORTED, ST_INPERSON_FIXED].includes(r.status)) {
+      return replyText_(token, "現在の予約状態では日時変更ができません。\nお問い合わせください。");
+    }
+    
+    return replyQuickReply_(token,
+      "現在の予約はいったん無効にして、新しく予約を取り直す形になります。\nよろしいですか？",
+      [CMD_CHANGE_DATE_YES, CMD_CHANGE_DATE_NO]
+    );
+  }
+
+  // ★追加：日時変更確認「はい」
+  if (text === CMD_CHANGE_DATE_YES) {
+    const r = getActiveReservationForUser_(userId);
+    if (!r) {
+      return replyButtons_(token, "対象の予約が見つかりませんでした。", [{ label: CMD_START, text: CMD_START }]);
+    }
+    
+    // カレンダーから削除
+    try {
+      const cal = CalendarApp.getCalendarById(CALENDAR_ID);
+      const start = new Date(r.startISO);
+      const end = new Date(r.endISO);
+      const events = cal.getEvents(
+        new Date(start.getTime() - 60000),
+        new Date(end.getTime() + 60000)
+      );
+      for (let ev of events) {
+        const title = ev.getTitle() || "";
+        const desc = ev.getDescription() || "";
+        if (title.includes(r.key) || desc.includes(`key:${r.key}`)) {
+          ev.deleteEvent();
+          break;
+        }
+      }
+    } catch (_) {}
+    
+    // 予約をキャンセル状態に
+    r.status = ST_CANCELLED;
+    r.updatedAtISO = nowISO_();
+    saveReservation_(r.key, r);
+    try { notifySheetUpsert_(r); } catch (_) {}
+    
+    // ログ
+    logToSheet_({
+      ts: new Date().toISOString(),
+      event: "DATE_CHANGE_CANCELLED",
+      userId: userId,
+      key: r.key,
+      format: r.format,
+      date: r.dateYMD
+    });
+    
+    // 管理者通知
+    notifyAdmin_(
+      "【日時変更】\n" +
+      "ユーザーが日時変更を選択しました。\n" +
+      buildAdminSummary_(r) + "\n" +
+      "→ 旧予約をキャンセル済み"
+    );
+    
+    resetState_(userId);
+    
+    return replyButtons_(
+      token,
+      "予約を取り消しました。\n\n「鑑定予約」から新しい日時を選んでください。",
+      [{ label: CMD_START, text: CMD_START }]
+    );
+  }
+
+  // ★追加：日時変更確認「やめる」
+  if (text === CMD_CHANGE_DATE_NO) {
+    return replyText_(token, "日時変更をキャンセルしました。\n現在の予約はそのまま有効です。");
   }
 
   // 一時確保解除（互換：旧「リセット」もOK）
@@ -529,21 +608,21 @@ function handleLineEvent_(ev) {
     return askPart_(token, userId, st.dateYMD, st.format);
   }
 
-  // 戻る：鑑定分数
+  // 戻る：鑑定分数（形式選択後に分数を聞くので、形式へ戻る）
   if (text === BACK_TO_MIN) {
-    setState_(userId, { step: "分数", minutes: "", price: "", slotListJson: "" });
+    setState_(userId, { step: "分数", minutes: "", price: "", slotListJson: "", dateYMD: "", partLabel: "", partKey: "" });
     return askMinutes_(token, userId);
   }
 
   // ① 形式
   if (st.step === "形式") {
     if (text === "オンライン鑑定") {
-      setState_(userId, { format: "ONLINE", area: "", step: "日付", partPage: 0 });
-      return askDate_(token, userId);
+      setState_(userId, { format: "ONLINE", area: "", step: "分数", partPage: 0 });
+      return askMinutes_(token, userId);
     }
     if (text === "対面鑑定") {
       setState_(userId, { format: "INPERSON", step: "エリア", partPage: 0 });
-      return replyButtons_(token, "【対面エリア】\nエリアを選んでください。", [
+      return replyButtons_(token, "【対面エリア】\nエリアを選んでください。\n※徒歩5分程の指定のカフェで鑑定を行います。", [
         { label: "名駅", text: "名駅" },
         { label: "栄", text: "栄" },
         { label: "金山", text: "金山" },
@@ -553,14 +632,26 @@ function handleLineEvent_(ev) {
     return replyText_(token, "ボタンから選んでください。");
   }
 
-  // ② エリア（対面）
+  // ② エリア（対面）→ 分数へ
   if (st.step === "エリア") {
     if (!INPERSON_PLACES[text]) return replyText_(token, "ボタンから選んでください。");
-    setState_(userId, { area: text, step: "日付", partPage: 0 });
-    return askDate_(token, userId);
+    setState_(userId, { area: text, step: "分数", partPage: 0 });
+    return askMinutes_(token, userId);
   }
 
-  // ③ 日付
+  // ③ 分数 → 日付へ
+  if (st.step === "分数") {
+    const minutes = pickMinutesFromText_(text);
+    if ([30,45,60,75,90].includes(minutes)) {
+      const isInperson = st.format === "INPERSON";
+      const price = isInperson ? (PRICE_TABLE[minutes] + INPERSON_EXTRA) : PRICE_TABLE[minutes];
+      setState_(userId, { minutes, price, step: "日付" });
+      return askDate_(token, userId);
+    }
+    return replyText_(token, "表示された候補から選んでください。");
+  }
+
+  // ④ 日付
   if (st.step === "日付") {
     if (text === "もっと先の日付") {
       setState_(userId, { step: "日付入力" });
@@ -582,7 +673,7 @@ function handleLineEvent_(ev) {
     return replyText_(token, "表示された候補から選んでください。");
   }
 
-  // ③-2 日付入力
+  // ④-2 日付入力
   if (st.step === "日付入力") {
     if (text === BACK_TO_DATE) {
       setState_(userId, { step: "日付" });
@@ -604,25 +695,19 @@ function handleLineEvent_(ev) {
     return askPart_(token, userId, ymd, st.format);
   }
 
-  // ④ 部
+  // ⑤ 部 → 空き枠へ
   if (st.step === "部") {
     if (!PARTS[text]) return replyText_(token, "ボタンから選んでください。");
-    setState_(userId, { partLabel: text, partKey: PARTS[text].key, step: "分数" });
-    return askMinutes_(token, userId);
-  }
-
-  // ⑤ 鑑定分数
-  if (st.step === "分数") {
-    const minutes = pickMinutesFromText_(text);
-    if ([30,45,60,75,90].includes(minutes)) return onMinutesPicked_(token, userId, minutes);
-    return replyText_(token, "表示された候補から選んでください。");
+    setState_(userId, { partLabel: text, partKey: PARTS[text].key, step: "空き枠" });
+    return replySlotQuickReply_(token, userId, false);
   }
 
   // ⑥ 開始時刻
   if (st.step === "空き枠") {
-    if (text === BACK_TO_MIN) {
-      setState_(userId, { step: "分数" });
-      return askMinutes_(token, userId);
+    // 戻る：時間帯へ
+    if (text === BACK_TO_PART) {
+      setState_(userId, { step: "部", partLabel: "", partKey: "", slotListJson: "", partPage: 0 });
+      return askPart_(token, userId, st.dateYMD, st.format);
     }
 
     if (!/^\d{2}:\d{2}$/.test(text)) return replyText_(token, "表示された候補から選んでください。");
