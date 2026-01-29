@@ -20,7 +20,7 @@ const FORM_URL_PREFILL =
 const MEET_URL = "https://meet.google.com/mxa-cjrt-gdf";
 
 // ===== シートWebアプリ（予約マスター）=====
-const SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxE3zrUnQHrOUqotDUKciTx5RFdDydDcOXpxPgfE8_zG8d6H45s9oEAjbuXI6vzMDsi_A/exec";
+const SHEET_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxaqKIsu-fm0IT3OTAI0_J6AGzeaPu-B2Jjqg4wWK7Vx4dr5pVVpEapXIcmdy7Nx9C_sQ/exec";
 const SHEET_API_SECRET = "rokkon_sheet_secret_2026";
 
 // ===== 内部コマンド（フォーム受領通知など）=====

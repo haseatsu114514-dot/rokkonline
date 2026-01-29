@@ -480,23 +480,34 @@ function handleLineEvent_(ev) {
   }
 
   // 一時確保解除（互換：旧「リセット」もOK）
+  // 一時確保解除（互換：旧「リセット」もOK）
   if (text === CMD_RESET || text === CMD_RESET_LEGACY) {
-    const cancelled = cancelActiveReservation_(userId);
-    resetState_(userId);
+    // ★高速化：先に判定だけ行う（API呼び出しや重い処理は後回し）
+    const active = getActiveReservationForUser_(userId);
+    const hasHold = (active && active.status === ST_HOLD);
 
-    if (cancelled) {
-      return replyButtons_(
+    // ★ユーザーへの返信を「先に」実行（体感速度向上）
+    if (hasHold) {
+      replyButtons_(
         token,
         "一時確保を解除しました。\n「鑑定予約」から進められます。",
         [{ label: CMD_START, text: CMD_START }]
       );
     } else {
-      return replyButtons_(
+      replyButtons_(
         token,
         "会話をリセットしました。\n「鑑定予約」から進められます。",
         [{ label: CMD_START, text: CMD_START }]
       );
     }
+
+    // ★返信後に重い処理（カレンダー削除・シート更新）を実行
+    if (hasHold) {
+      cancelActiveReservation_(userId);
+    }
+
+    resetState_(userId);
+    return; // 返信済みなので終了
   }
 
   // 支払い関連（オンライン）
