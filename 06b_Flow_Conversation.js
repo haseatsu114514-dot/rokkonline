@@ -61,7 +61,7 @@ function askDate_(token, userId) {
   return replyQuickReplyWithHeader_(
     token,
     "【日付】",
-    "日付を選んでください。\n※当日は「開始5時間前」を過ぎた枠は受付できません。\n※ご予約受付は【本日から31日以内】です。",
+    "日付を選んでください。\n※当日は「開始5時間前」を過ぎた枠は受付できません。",
     labels
   );
 }
@@ -71,7 +71,6 @@ function askDateInput_(token) {
   return replyButtons_(
     token,
     "日付を入力してください。\n" +
-    "※ご予約受付は【本日から31日以内】です。\n\n" +
     "入力例：1月30日 / 1/30 / 2026/1/30 / 2026年1月30日",
     [{ label: BACK_TO_DATE, text: BACK_TO_DATE }]
   );
@@ -285,7 +284,7 @@ function askMinutes_(token, userId) {
   labels.push(BACK_TO_FORMAT);
 
   const extraNote = isInperson
-    ? "\n※対面鑑定は+500円です"
+    ? "\n※同席料+500円を含めた値段です"
     : "";
 
   return replyQuickReplyWithHeader_(
@@ -764,26 +763,7 @@ function handleLineEvent_(ev) {
       saveReservation_(key, res);
       indexUserKey_(userId, key);
 
-      // ★ 重要イベントログ：一時確保作成
-      logToSheet_({
-        ts: new Date().toISOString(),
-        event: "HOLD_CREATED",
-        userId: userId,
-        key: key,
-        format: res.format,
-        area: res.area,
-        date: res.dateYMD,
-        start: fmtHM_(new Date(res.startISO)),
-        minutes: res.minutes,
-        price: res.price
-      });
 
-      // ★改修：管理者通知（一時確保）
-      // タイトル「【一時確保】」は buildAdminSummary_ 内に含まれるので削除
-      notifyAdmin_(
-        buildAdminSummary_(res) + "\n" +
-        `有効期限：${fmtHM_(expiresAt)}`
-      );
 
       // ★改修：一時確保メッセージの強調表現（詳細情報を追加）
       const detailInfo =
@@ -792,7 +772,10 @@ function handleLineEvent_(ev) {
         (res.area ? `\nエリア：${res.area}` : "");
 
       const shortUrl = buildShortFormUrl_(key);
-      pushQuickReply_(userId,
+
+      // ★高速化：PushではなくReplyを使い、かつ管理者通知の前に実行
+      const userReply = replyQuickReply_(
+        token,  // userIdではなくtokenを使う
         "⏳【一時確保中】重要なお知らせ\n\n" +
         detailInfo + "\n\n" +
         "下のフォーム送信で予約が確定します。\n\n" +
@@ -807,11 +790,31 @@ function handleLineEvent_(ev) {
         ]
       );
 
+      // ★管理者通知（ユーザー返信の後に移動して体感速度向上）
+      notifyAdmin_(
+        buildAdminSummary_(res) + "\n" +
+        `有効期限：${fmtHM_(expiresAt)}`
+      );
+
+      // ★ 重要イベントログ：一時確保作成（ユーザー返信後に移動）
+      logToSheet_({
+        ts: new Date().toISOString(),
+        event: "HOLD_CREATED",
+        userId: userId,
+        key: key,
+        format: res.format,
+        area: res.area,
+        date: res.dateYMD,
+        start: fmtHM_(new Date(res.startISO)),
+        minutes: res.minutes,
+        price: res.price
+      });
+
       try { notifySheetUpsert_(res); } catch (e) { }
       try { updateCalendarEventTitle_(res); } catch (e) { }
 
       resetState_(userId);
-      return;
+      return userReply;
 
     } finally {
       lock.releaseLock();

@@ -42,7 +42,10 @@ function doGet(e) {
   if (f) {
     const url = FORM_URL_PREFILL.replace("TESTKEY", encodeURIComponent(f));
     return HtmlService.createHtmlOutput(
-      `<html><head><meta http-equiv="refresh" content="0; url=${url}"></head><body></body></html>`
+      `<html><head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="refresh" content="0; url=${url}">
+</head><body>Loading...</body></html>`
     );
   }
 
@@ -292,7 +295,8 @@ function setFormReceivedByKey_(key, payMethod) {
   const p = INPERSON_PLACES[r.area] || null;
   const placeText = p ? `${p.name}\n住所：${p.address}` : "集合場所情報が見つかりませんでした。";
 
-  pushText_(r.userId,
+  // ★改修：1通に統合（本文＋ボタン）
+  pushQuickReply_(r.userId,
     "予約が確定しました。\n\n" +
     "━━━━━━━━━━━━━━\n" +
     "【対面鑑定のお支払い】\n" +
@@ -305,11 +309,7 @@ function setFormReceivedByKey_(key, payMethod) {
     `エリア：${r.area}\n` +
     `集合場所：\n${placeText}\n\n` +
     "※当日は先に席を確保してお待ちします。\n" +
-    "※混雑状況により、店舗/合流場所を変更する場合があります。その際はLINEでご連絡します。"
-  );
-
-  pushQuickReply_(r.userId,
-    "ご不明点があればこちらからご連絡ください。",
+    "※混雑状況により、店舗/合流場所を変更する場合があります。その際はLINEでご連絡します。",
     [
       { type: "message", label: "日時を変更する", text: CMD_CHANGE_DATE },
       { type: "message", label: "問い合わせる", text: CMD_INQUIRY },

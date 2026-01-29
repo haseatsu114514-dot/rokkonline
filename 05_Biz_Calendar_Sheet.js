@@ -228,26 +228,30 @@ function computeCandidateSlots_(st) {
 
 // ---- シートUPSERT ----
 function notifySheetUpsert_(res) {
-  UrlFetchApp.fetch(SHEET_WEBAPP_URL, {
-    method: "post",
-    contentType: "application/json",
-    payload: JSON.stringify({
-      secret: SHEET_API_SECRET,
-      cmd: "UPSERT_RESERVATION",
-      data: {
-        key: res.key,
-        date: res.dateYMD,
-        start: fmtHM_(new Date(res.startISO)),
-        end: fmtHM_(new Date(res.endISO)),
-        type: res.format === "ONLINE" ? "オンライン" : "対面",
-        area: res.area || "",
-        minutes: res.minutes,
-        price: res.price,
-        status: res.status,
-      },
-    }),
-    muteHttpExceptions: true,
-  });
+  try {
+    UrlFetchApp.fetch(SHEET_WEBAPP_URL, {
+      method: "post",
+      contentType: "application/json",
+      payload: JSON.stringify({
+        secret: SHEET_API_SECRET,
+        cmd: "UPSERT_RESERVATION",
+        data: {
+          key: res.key,
+          date: res.dateYMD,
+          start: fmtHM_(new Date(res.startISO)),
+          end: fmtHM_(new Date(res.endISO)),
+          type: res.format === "ONLINE" ? "オンライン" : "対面",
+          area: res.area || "",
+          minutes: res.minutes,
+          price: res.price,
+          status: res.status,
+        },
+      }),
+      muteHttpExceptions: true,
+    });
+  } catch (e) {
+    console.error("notifySheetUpsert_ error:", e);
+  }
 }
 
 // ---- 支払い案内文（オンライン用）----

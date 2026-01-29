@@ -36,6 +36,9 @@ function push_(uid, msgs) {
  * ★ BOT発言（OUT）ログ付き pushText
  */
 function pushText_(uid, text) {
+  // ★高速化：先に送ってからログ（ログ保存のHTTP待機をユーザーに待たせない）
+  push_(uid, [{ type: "text", text }]);
+
   logToSheet_({
     ts: new Date().toISOString(),
     direction: "OUT",
@@ -44,7 +47,6 @@ function pushText_(uid, text) {
     type: "text",
     text: text
   });
-  push_(uid, [{ type: "text", text }]);
 }
 
 // -------------------------------
