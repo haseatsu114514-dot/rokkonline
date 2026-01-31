@@ -13,7 +13,7 @@ const DATE_QUICK_DAYS = 7;        // 当日〜7日分
 
 // cron
 const PAY_NUDGE_HOURS_BEFORE = 6;       // （将来用／現状未使用OK）
-const ONLINE_REMIND_HOURS_BEFORE = 1;   // オンライン 1時間前：Meet送付
+const ONLINE_REMIND_HOURS_BEFORE = 2;   // オンライン 2時間前：Meet送付
 const INPERSON_REMIND_HOURS_BEFORE = 2; // 対面 2時間前：集合場所
 
 // ===== UI（キーワード）=====

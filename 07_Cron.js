@@ -5,11 +5,16 @@
 // ===================================================
 // cron エントリ
 // ===================================================
+// ===================================================
+// cron エントリ
+// ★改修：Push削減のためリマインド・自動キャンセル・期限切れ通知を停止
+// ===================================================
 function cronAll() {
-  cleanupHoldCron();
-  autoClosePastReservationsCron();
-  paymentCancelCron();
-  remindCron();
+  cleanupHoldCron(); // 一時確保の掃除（通知なし）
+  autoClosePastReservationsCron(); // 過去予約の消化済み化
+
+  // paymentCancelCron(); // ★停止：自動キャンセル
+  // remindCron();        // ★停止：リマインド
 }
 
 // ===================================================
@@ -33,7 +38,7 @@ function cleanupHoldCron() {
     const userId = pickDesc_(ev.getDescription() || "", "userId");
 
     if (exp && Date.now() > new Date(exp).getTime()) {
-      try { ev.deleteEvent(); } catch (_) {}
+      try { ev.deleteEvent(); } catch (_) { }
 
       if (!key) return;
       const r = loadReservation_(key);
@@ -42,14 +47,17 @@ function cleanupHoldCron() {
       r.status = ST_EXPIRED;
       r.updatedAtISO = nowISO_();
       saveReservation_(key, r);
-      try { notifySheetUpsert_(r); } catch (_) {}
+      try { notifySheetUpsert_(r); } catch (_) { }
 
       if (userId) {
+        // ★停止：Push削減のため期限切れ通知は送らない
+        /*
         pushText_(
           userId,
           "一時確保の期限が切れました。\n\n" +
           "お手数ですが、もう一度「鑑定予約」からお申し込みください。"
         );
+        */
       }
     }
   });
@@ -73,7 +81,7 @@ function autoClosePastReservationsCron() {
     r.status = ST_DONE;
     r.updatedAtISO = nowISO_();
     saveReservation_(k, r);
-    try { notifySheetUpsert_(r); } catch (_) {}
+    try { notifySheetUpsert_(r); } catch (_) { }
   });
 }
 
@@ -107,12 +115,12 @@ function paymentCancelCron() {
           break;
         }
       }
-    } catch (_) {}
+    } catch (_) { }
 
     r.status = ST_CANCELLED;
     r.updatedAtISO = nowISO_();
     saveReservation_(r.key, r);
-    try { notifySheetUpsert_(r); } catch (_) {}
+    try { notifySheetUpsert_(r); } catch (_) { }
 
     pushText_(
       r.userId,
@@ -157,7 +165,7 @@ function remindCron() {
       r.flags.onlineMeetRemindSentAtISO = nowISO_();
       r.updatedAtISO = nowISO_();
       saveReservation_(r.key, r);
-      try { notifySheetUpsert_(r); } catch (_) {}
+      try { notifySheetUpsert_(r); } catch (_) { }
       return;
     }
 
@@ -187,6 +195,6 @@ function remindCron() {
     r.flags.inpersonPlaceRemindSentAtISO = nowISO_();
     r.updatedAtISO = nowISO_();
     saveReservation_(r.key, r);
-    try { notifySheetUpsert_(r); } catch (_) {}
+    try { notifySheetUpsert_(r); } catch (_) { }
   });
 }

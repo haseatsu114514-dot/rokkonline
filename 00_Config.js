@@ -5,6 +5,9 @@
 // ===== LINE =====
 const ACCESS_TOKEN = "sVWnhFXqTy9bT4rRXd8Tf4uFdZT9A9+RKyAI0OzPhy9Yz0tGWsqxoInWEGlxCLLjrU6Ks/WJzi0AYnaiP/GEDAJLjRztKU5hyg6giDg3ShfcCApL6kELXeuBX6/OA0VOyXPL0IVndOMlhqZE/py1tQdB04t89/1O/w1cDnyilFU=";
 
+// ===== 管理用Bot（六根清浄 管理） =====
+const ADMIN_BOT_TOKEN = "o8HVlpXGSyvQVRk9ba+wp1ifNLaull4YuMEnVPUtYuyOExbURwnKGpm0WFgAIrs7nFS6t1WY+c9Gygo8UiXjsIm3dfTpFOlMyKsjWTpj7hbDwvAaNWPGds5boeG7yMbU/4JBsczEWCVMk7MmEEe/ygdB04t89/1O/w1cDnyilFU=";
+
 // ===== 管理者通知（あなたのLINE userId）=====
 // ※ここだけ差し替えて使う
 const ADMIN_USER_ID = "U086aa3756b3a24bf9eb2105377771aa0";

@@ -43,3 +43,15 @@ function pickMinutesFromText_(text) {
   const m = String(text || "").match(/^(\d{2,3})\s*分/);
   return m ? Number(m[1]) : 0;
 }
+
+// ★追加：ロック取得のリトライ機構
+function tryLockWithRetry_(maxRetries, waitMs) {
+  maxRetries = maxRetries || 3;
+  waitMs = waitMs || 1000;
+  const lock = LockService.getScriptLock();
+  for (let i = 0; i < maxRetries; i++) {
+    if (lock.tryLock(3000)) return lock;
+    if (i < maxRetries - 1) Utilities.sleep(waitMs);
+  }
+  return null;
+}

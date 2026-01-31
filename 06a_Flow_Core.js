@@ -22,6 +22,8 @@ function doPost(e) {
     });
   } catch (err) {
     console.log("doPost error:", err);
+    // ★追加：管理Botにエラー通知
+    try { pushToAdminBot_("⚠️ Webhookエラー発生:\n" + err.message); } catch (_) { }
     return ContentService.createTextOutput("ERROR: " + err.message);
   }
   return ContentService.createTextOutput("OK");
@@ -183,21 +185,22 @@ function handleInternalCommand_(body) {
 
     const cmd = String(body.cmd || "");
 
-    if (cmd === "FORM_RECEIVED_NOTICE_ONLY") {
-      const key = String(body.key || "").trim();
-      if (!key) return false;
-      const r = loadReservation_(key);
-      if (r && r.userId) {
-        pushText_(r.userId, "フォーム送信を受理しました。\n内容を確認しますので、少しお待ちください。");
-      }
-      return true;
-    }
+    // ★廃止：FORM_RECEIVED_NOTICE_ONLY は使わない（メッセージ削減）
 
     if (cmd === "FORM_RECEIVED") {
       const key = String(body.key || "").trim();
       const payMethod = normalizePayMethod_(body.payMethod || "");
       if (!key) return false;
-      setFormReceivedByKey_(key, payMethod);
+      // ★追加：フォームからの鑑定情報を渡す
+      const formData = {
+        name: body.name || "",
+        birthDate: body.birthDate || "",
+        birthTime: body.birthTime || "",
+        sex: body.sex || "",
+        topics: body.topics || "",
+        details: body.details || ""
+      };
+      setFormReceivedByKey_(key, payMethod, formData);
       return true;
     }
 
@@ -217,14 +220,25 @@ function handleInternalCommand_(body) {
 
 // ===================================================
 // フォーム受理 → 予約へ
+// ★改修：フォームデータを受け取り、管理Botに鑑定情報を転送
 // ===================================================
-function setFormReceivedByKey_(key, payMethod) {
+function setFormReceivedByKey_(key, payMethod, formData) {
   const r = loadReservation_(key);
   if (!r) return;
   if (r.status === ST_EXPIRED) return;
 
+  // フォームデータを予約に保存
+  formData = formData || {};
   r.formReceived = true;
   r.payMethod = normalizePayMethod_(payMethod || r.payMethod || "");
+  r.formData = {
+    name: formData.name || "",
+    birthDate: formData.birthDate || "",
+    birthTime: formData.birthTime || "",
+    sex: formData.sex || "",
+    topics: formData.topics || "",
+    details: formData.details || ""
+  };
 
   if (r.format === "ONLINE") {
     if (r.status === ST_HOLD) r.status = ST_WAIT_PAY;
@@ -249,12 +263,23 @@ function setFormReceivedByKey_(key, payMethod) {
     payMethod: r.payMethod
   });
 
-  notifyAdmin_(
-    "【フォーム受理】\n" +
-    buildAdminSummary_(r) + "\n" +
-    (r.format === "ONLINE"
-      ? "次：支払い待ち（支払い報告が来たら確認）"
-      : "次：当日集合（案内送信済み）")
+  // ★管理Botに鑑定情報を転送
+  const formatText = r.format === "ONLINE" ? "オンライン" : "対面";
+  const birthTimeText = r.formData.birthTime ? `\n出生時間・場所：${r.formData.birthTime}` : "";
+  pushToAdminBot_(
+    "📋【予約確定】鑑定情報\n" +
+    "━━━━━━━━━━━━━━\n" +
+    `日時：${formatRangeText_(r)}\n` +
+    `形式：${formatText}${r.area ? "（" + r.area + "）" : ""}\n` +
+    `鑑定分数：${r.minutes}分\n` +
+    `料金：${fmtYen_(r.price)}\n` +
+    "━━━━━━━━━━━━━━\n" +
+    `お名前：${r.formData.name || "未入力"}\n` +
+    `性別：${r.formData.sex || "未入力"}\n` +
+    `生年月日：${r.formData.birthDate || "未入力"}` +
+    birthTimeText + "\n" +
+    `テーマ：${r.formData.topics || "未選択"}\n` +
+    `詳細：${r.formData.details || "なし"}`
   );
 
   try { notifySheetUpsert_(r); } catch (e) { }
@@ -309,14 +334,17 @@ function setFormReceivedByKey_(key, payMethod) {
     `エリア：${r.area}\n` +
     `集合場所：\n${placeText}\n\n` +
     "※当日は先に席を確保してお待ちします。\n" +
-    "※混雑状況により、店舗/合流場所を変更する場合があります。その際はLINEでご連絡します。",
+    "※混雑状況により、店舗/合流場所を変更する場合があります。その際はLINEでご連絡します。\n\n" +
+    "⚠️【重要】リマインドは送信されません\n" +
+    "この画面をスクリーンショットで保存し、忘れないようにしてください。",
     [
       { type: "message", label: "日時を変更する", text: CMD_CHANGE_DATE },
       { type: "message", label: "問い合わせる", text: CMD_INQUIRY },
     ]
   );
 
-  notifyAdmin_("【対面予約確定】\n" + buildAdminSummary_(r));
+  // ★管理Botに鑑定情報を転送
+  pushToAdminBot_("【対面予約確定】\n" + buildAdminSummary_(r));
 }
 
 // ===================================================
@@ -345,7 +373,8 @@ function markPaidConfirmedByKey_(key) {
   try { notifySheetUpsert_(r); } catch (e) { }
   try { updateCalendarEventTitle_(r); } catch (e) { }
 
-  notifyAdmin_("【入金確認済み】\n" + buildAdminSummary_(r));
+  // ★管理Bot通知
+  pushToAdminBot_("【入金確認済み（手動）】\n" + buildAdminSummary_(r));
 }
 
 // ===================================================
@@ -417,19 +446,22 @@ function cancelReservationByUser_(r) {
 
 // ===================================================
 // 支払い報告
+// ★改修：入金確認フローを廃止。支払い報告で予約確定。
 // ===================================================
 function buildOnlineAfterPaidReportText_(r) {
   return (
     "支払い報告を受け付けました。ありがとうございます。\n" +
-    "これで【予約手続きは完了】です。\n\n" +
+    "これで【予約確定】です！\n\n" +
     `日時：${formatRangeText_(r)}\n` +
     `料金：${fmtYen_(r.price)}\n` +
     `参加URL：${MEET_URL}\n\n` +
     "✅ Google Meet は【アカウント不要／アプリ不要】で参加できます。\n" +
     "・スマホ：URLを開く → ブラウザ参加\n" +
     "・PC：URLを開くだけでOK\n\n" +
-    "※お支払いの確認が取れ次第、鑑定を開始できます。\n" +
-    "（未確認の場合は開始できません）"
+    "当日は上記URLから参加してください。\n" +
+    "お会いできるのを楽しみにしています！\n\n" +
+    "⚠️【重要】リマインドは送信されません\n" +
+    "この画面をスクリーンショットで保存し、カレンダー等に登録してください。"
   );
 }
 
@@ -445,19 +477,27 @@ function handlePaymentCommands_(userId, token, text) {
     replyText_(token, "支払い報告はオンライン鑑定のみです。");
     return true;
   }
-  if (![ST_WAIT_PAY, ST_PAID_REPORTED].includes(r.status)) {
+  // ★改修：確認済みも許可（重複報告対応）
+  if (![ST_WAIT_PAY, ST_PAID_REPORTED, ST_PAID_CONFIRMED].includes(r.status)) {
     replyText_(token, `現在の状態：${r.status}\nこの操作は不要です。`);
     return true;
   }
+  // 既に確認済みなら再送信
+  if (r.status === ST_PAID_CONFIRMED) {
+    replyText_(token, buildOnlineAfterPaidReportText_(r));
+    return true;
+  }
 
-  r.status = ST_PAID_REPORTED;
+  // ★改修：支払い報告で直接「確認済み」に（入金確認フロー廃止）
+  r.status = ST_PAID_CONFIRMED;
   r.paidReportedAtISO = nowISO_();
+  r.paidConfirmedAtISO = nowISO_();
   r.updatedAtISO = nowISO_();
   saveReservation_(r.key, r);
 
   logToSheet_({
     ts: new Date().toISOString(),
-    event: "PAID_REPORTED",
+    event: "PAID_CONFIRMED",
     userId: r.userId,
     key: r.key,
     date: r.dateYMD,
@@ -465,10 +505,10 @@ function handlePaymentCommands_(userId, token, text) {
     price: r.price
   });
 
+  // ★改修：管理者通知から「入金確認→」を削除
   notifyAdmin_(
-    "【支払い報告あり】\n" +
-    buildAdminSummary_(r) + "\n" +
-    "次：入金確認→（確認したら）MARK_PAID_CONFIRMED"
+    "【支払い報告→予約確定】\n" +
+    buildAdminSummary_(r)
   );
 
   try { notifySheetUpsert_(r); } catch (e) { }

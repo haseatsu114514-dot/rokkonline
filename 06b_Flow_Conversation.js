@@ -33,15 +33,22 @@ function isWithin31Days_(dateObj) {
 
 // ===================================================
 // 日付：QuickReply（表示は「1月30日」）
+// ★改修：対面鑑定は当日受付不可
 // ===================================================
 function askDate_(token, userId) {
+  const st = getState_(userId) || {};
+  const isInperson = st.format === "INPERSON";
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const labels = [];
   const map = [];
 
-  for (let i = 0; i < DATE_QUICK_DAYS; i++) {
+  // ★対面は当日不可なので i=1 から開始
+  const startDay = isInperson ? 1 : 0;
+
+  for (let i = startDay; i < DATE_QUICK_DAYS + startDay; i++) {
     const d = new Date(today.getTime() + i * 86400000);
     if (!isWithin31Days_(d)) break;
 
@@ -58,10 +65,15 @@ function askDate_(token, userId) {
 
   setState_(userId, { dateQuickMapJson: JSON.stringify(map) });
 
+  // ★対面と非対面でメッセージを変える
+  const msgText = isInperson
+    ? "日付を選んでください。\n\n⚠️ 対面鑑定は【当日の受付ができません】\n事前に余裕を持ってご予約ください。"
+    : "日付を選んでください。\n※当日は「開始5時間前」を過ぎた枠は受付できません。";
+
   return replyQuickReplyWithHeader_(
     token,
     "【日付】",
-    "日付を選んでください。\n※当日は「開始5時間前」を過ぎた枠は受付できません。",
+    msgText,
     labels
   );
 }
@@ -701,6 +713,15 @@ function handleLineEvent_(ev) {
       );
     }
 
+    // ★対面鑑定で本日を入力した場合はエラー
+    if (st.format === "INPERSON" && isToday_(ymd)) {
+      return replyButtons_(
+        token,
+        "⚠️ 対面鑑定は【当日の受付ができません】\n\n別の日付を選んでください。",
+        [{ label: BACK_TO_DATE, text: BACK_TO_DATE }]
+      );
+    }
+
     setState_(userId, { dateYMD: ymd, step: "部", partPage: 0 });
     return askPart_(token, userId, ymd, st.format);
   }
@@ -729,8 +750,9 @@ function handleLineEvent_(ev) {
     const start = new Date(slot.startISO);
     const end = new Date(start.getTime() + Number(st.minutes) * 60000);
 
-    const lock = LockService.getScriptLock();
-    if (!lock.tryLock(3000)) return replyText_(token, "ただいま混み合っています。もう一度お試しください。");
+    // ★改修：リトライ機構（最大3回、1秒間隔）
+    const lock = tryLockWithRetry_(3, 1000);
+    if (!lock) return replyText_(token, "ただいま混み合っています。もう一度お試しください。");
 
     try {
       if (!isSlotFree_(start, end)) {

@@ -137,3 +137,42 @@ function logToSheet_(payload) {
     console.log("logToSheet error", e);
   }
 }
+
+// -------------------------------
+// ★ 管理用Bot通知（六根清浄 管理）
+// -------------------------------
+function pushToAdminBot_(text) {
+  if (!ADMIN_BOT_TOKEN || !ADMIN_USER_ID) {
+    console.log("pushToAdminBot_: TOKEN or USER_ID not configured");
+    return;
+  }
+  try {
+    const res = UrlFetchApp.fetch("https://api.line.me/v2/bot/message/push", {
+      method: "post",
+      contentType: "application/json",
+      headers: { Authorization: "Bearer " + ADMIN_BOT_TOKEN },
+      payload: JSON.stringify({
+        to: ADMIN_USER_ID,
+        messages: [{ type: "text", text: text }]
+      }),
+      muteHttpExceptions: true
+    });
+    if (res.getResponseCode() !== 200) {
+      console.log("pushToAdminBot_ error:", res.getContentText());
+    }
+  } catch (e) {
+    console.log("pushToAdminBot_ error:", e);
+  }
+}
+
+// ★ テスト用：エラー通知テスト
+function testErrorNotification() {
+  pushToAdminBot_("🧪 【テスト通知】\n\n管理Botへの通知が正常に動作しています。\n\n送信時刻: " + new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" }));
+  console.log("テスト通知を送信しました");
+}
+
+// ★ テスト用：Webhookエラーをシミュレート
+function testWebhookError() {
+  pushToAdminBot_("⚠️ 【Webhookエラーテスト】\n\nこれはエラー通知のテストです。\n実際のエラーではありません。");
+  console.log("Webhookエラーテスト通知を送信しました");
+}
