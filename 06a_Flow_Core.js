@@ -311,7 +311,6 @@ function setFormReceivedByKey_(key, payMethod, formData) {
       [
         { type: "message", label: "支払い報告", text: CMD_PAID_REPORT },
         { type: "message", label: "日時を変更する", text: CMD_CHANGE_DATE },
-        { type: "message", label: "問い合わせる", text: CMD_INQUIRY },
       ]
     );
     return;
@@ -339,7 +338,6 @@ function setFormReceivedByKey_(key, payMethod, formData) {
     "この画面をスクリーンショットで保存し、忘れないようにしてください。",
     [
       { type: "message", label: "日時を変更する", text: CMD_CHANGE_DATE },
-      { type: "message", label: "問い合わせる", text: CMD_INQUIRY },
     ]
   );
 
