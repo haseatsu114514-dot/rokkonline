@@ -274,34 +274,34 @@ function notifySheetUpsert_(res) {
 }
 
 // ---- 支払い案内文（オンライン用）----
+// ---- 支払い案内文（オンライン用）----
 function buildOnlinePayInfoText_(payMethod, startISO) {
   const pm = normalizePayMethod_(payMethod || "");
-  let head = "【お支払い（オンライン）】\n";
-  if (pm) head += `（フォーム選択：${pm}）\n`;
+  let head = "【お支払い】\n";
+  if (pm) head += `（選択：${pm}）\n`;
 
   let deadlineText = "";
   if (startISO) {
     const deadline = new Date(new Date(startISO).getTime() - PAY_CANCEL_HOURS_BEFORE * 3600000);
     deadlineText =
-      `\n⚠️ 支払い報告の期限：${fmtYMD_(deadline)} ${fmtHM_(deadline)}\n` +
-      `（鑑定の${PAY_CANCEL_HOURS_BEFORE}時間前まで）\n` +
-      "※期限を過ぎると予約が自動キャンセルされます\n";
+      `\n⚠️ 支払期限：${fmtYMD_(deadline)} ${fmtHM_(deadline)}\n` +
+      "※期限を過ぎると自動キャンセルされます\n";
   }
 
   const commonTail =
-    "\nお支払いがお済みの場合は「" + CMD_PAID_REPORT + "」を押してください。\n" +
-    "※未確認の場合、鑑定は開始できません（確認後に開始します）。";
+    "\n支払完了後、下部ボタン「" + CMD_PAID_REPORT + "」を押してください。\n" +
+    "※未払いでは鑑定できません🙇‍♂️";
 
   if (pm === "PayPay") {
-    return head + "・PayPay：" + PAY_PAYPAY_ID + deadlineText + commonTail;
+    return head + "PayPay：" + PAY_PAYPAY_ID + deadlineText + commonTail;
   }
   if (pm === "振込") {
-    return head + "・銀行振込：\n" + PAY_BANK_TEXT + deadlineText + commonTail;
+    return head + "銀行振込：\n" + PAY_BANK_TEXT + deadlineText + commonTail;
   }
 
   return head +
-    "・PayPay：" + PAY_PAYPAY_ID + "\n" +
-    "・銀行振込：\n" + PAY_BANK_TEXT + deadlineText + commonTail;
+    "PayPay：" + PAY_PAYPAY_ID + "\n" +
+    "銀行振込：\n" + PAY_BANK_TEXT + deadlineText + commonTail;
 }
 
 // ---- 1人1枠制限：アクティブ取得 ----

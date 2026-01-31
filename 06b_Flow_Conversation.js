@@ -807,16 +807,12 @@ function handleLineEvent_(ev) {
       const shortUrl = buildShortFormUrl_(key);
 
       // ★高速化：PushではなくReplyを使い、かつ管理者通知の前に実行
+      // ★高速化：PushではなくReplyを使い、かつ管理者通知の前に実行
       const userReply = replyQuickReply_(
         token,  // userIdではなくtokenを使う
-        "⏳【一時確保中】重要なお知らせ\n\n" +
+        `⏳ 仮押さえしました（期限：${fmtHM_(expiresAt)}）\n\n` +
         detailInfo + "\n\n" +
-        "下のフォーム送信で予約が確定します。\n\n" +
-        "━━━━━━━━━━━━━━\n" +
-        "有効期限までにフォーム送信が必要です\n" +
-        `（有効期限：${fmtHM_(expiresAt)}）\n` +
-        "━━━━━━━━━━━━━━\n\n" +
-        "▼ フォーム入力（所要:約3分）",
+        "👇 今すぐフォームを送って【予約確定】してください",
         [
           { type: "uri", label: "フォームを開く", uri: shortUrl },
           { type: "message", label: "一時確保をキャンセル", text: CMD_RESET },

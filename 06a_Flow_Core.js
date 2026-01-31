@@ -304,10 +304,8 @@ function setFormReceivedByKey_(key, payMethod, formData) {
     }
 
     pushQuickReply_(r.userId,
-      "予約が確定しました。\n\n" +
-      "━━━━━━━━━━━━━━\n" +
-      buildOnlinePayInfoText_(r.payMethod, r.startISO) +
-      "\n━━━━━━━━━━━━━━",
+      "✅ 予約確定\n\n" +
+      buildOnlinePayInfoText_(r.payMethod, r.startISO),
       [
         { type: "message", label: "支払い報告", text: CMD_PAID_REPORT },
         { type: "message", label: "日時を変更する", text: CMD_CHANGE_DATE },
@@ -321,21 +319,12 @@ function setFormReceivedByKey_(key, payMethod, formData) {
 
   // ★改修：1通に統合（本文＋ボタン）
   pushQuickReply_(r.userId,
-    "予約が確定しました。\n\n" +
-    "━━━━━━━━━━━━━━\n" +
-    "【対面鑑定のお支払い】\n" +
-    "・当日は【現地でお支払い】です。\n" +
-    "（現金／その場でPayPay可）\n" +
-    "※できるだけ【お釣りの出ないよう】ご準備いただけると助かります。\n" +
-    "━━━━━━━━━━━━━━\n\n" +
-    "【当日のご案内】\n" +
+    "✅ 予約確定\n\n" +
     `日時：${formatRangeText_(r)}\n` +
-    `エリア：${r.area}\n` +
-    `集合場所：\n${placeText}\n\n` +
-    "※当日は先に席を確保してお待ちします。\n" +
-    "※混雑状況により、店舗/合流場所を変更する場合があります。その際はLINEでご連絡します。\n\n" +
-    "⚠️【重要】リマインドは送信されません\n" +
-    "この画面をスクリーンショットで保存し、忘れないようにしてください。",
+    `場所：${placeText}\n` +
+    "支払：当日現地払い（現金/PayPay）\n\n" +
+    "⚠️ リマインドは送りませんので、\n" +
+    "この画面を【スクショ保存】してください。",
     [
       { type: "message", label: "日時を変更する", text: CMD_CHANGE_DATE },
     ]
