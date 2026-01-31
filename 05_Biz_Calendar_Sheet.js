@@ -229,7 +229,7 @@ function computeCandidateSlots_(st) {
 // ---- シートUPSERT ----
 function notifySheetUpsert_(res) {
   try {
-    UrlFetchApp.fetch(SHEET_WEBAPP_URL, {
+    const res = UrlFetchApp.fetch(SHEET_WEBAPP_URL, {
       method: "post",
       contentType: "application/json",
       payload: JSON.stringify({
