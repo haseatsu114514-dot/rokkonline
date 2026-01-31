@@ -341,8 +341,7 @@ function setFormReceivedByKey_(key, payMethod, formData) {
     ]
   );
 
-  // ★管理Botに鑑定情報を転送
-  pushToAdminBot_("【対面予約確定】\n" + buildAdminSummary_(r));
+
 }
 
 // ===================================================
