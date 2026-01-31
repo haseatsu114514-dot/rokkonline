@@ -229,7 +229,7 @@ function computeCandidateSlots_(st) {
 // ---- シートUPSERT ----
 function notifySheetUpsert_(res) {
   try {
-    const res = UrlFetchApp.fetch(SHEET_WEBAPP_URL, {
+    const httpRes = UrlFetchApp.fetch(SHEET_WEBAPP_URL, {
       method: "post",
       contentType: "application/json",
       payload: JSON.stringify({
@@ -251,8 +251,8 @@ function notifySheetUpsert_(res) {
     });
 
     // レスポンス確認
-    const code = res.getResponseCode();
-    const content = res.getContentText();
+    const code = httpRes.getResponseCode();
+    const content = httpRes.getContentText();
 
     if (code !== 200) {
       console.error(`Sheet API HTTP Error (${code}):`, content);
