@@ -12,33 +12,33 @@ const TEST_SEND_LINE = true;         // テスト時にLINE通知を送信する
 // ===================================================
 function test_cancelMyReservation() {
   console.log("=== 予約キャンセルテスト開始 ===");
-  
+
   const active = getActiveReservationForUser_(TEST_USER_ID);
-  
+
   if (!active) {
     console.log("❌ アクティブな予約が見つかりませんでした。");
     console.log("=== テスト終了 ===");
     return;
   }
-  
+
   console.log("📋 見つかった予約:");
   console.log("  - key: " + active.key);
   console.log("  - 状態: " + active.status);
   console.log("  - 形式: " + active.format);
   console.log("  - 日時: " + formatRangeText_(active));
-  
+
   // キャンセル実行
   cancelReservationByUser_(active);
-  
+
   // 結果確認
   const after = loadReservation_(active.key);
   console.log("✅ キャンセル完了");
   console.log("  - 新状態: " + after.status);
-  
+
   if (TEST_SEND_LINE) {
     notifyAdmin_("【テスト】予約キャンセルテストを実行しました。key: " + active.key);
   }
-  
+
   console.log("=== テスト終了 ===");
 }
 
@@ -48,28 +48,28 @@ function test_cancelMyReservation() {
 function test_fullFlowInperson() {
   console.log("=== 対面フロー完全テスト開始 ===");
   const startTime = Date.now();
-  
+
   // 既存予約をクリア
   _clearTestUserReservations();
   resetState_(TEST_USER_ID);
-  
+
   // Step 1: 形式選択
   console.log("\n[Step 1] 形式選択: 対面");
   setState_(TEST_USER_ID, { format: "INPERSON", step: "エリア", partPage: 0 });
   _logState("形式選択後");
-  
+
   // Step 2: エリア選択
   console.log("\n[Step 2] エリア選択: 名駅");
   setState_(TEST_USER_ID, { area: "名駅", step: "日付", partPage: 0 });
   _logState("エリア選択後");
-  
+
   // Step 3: 日付選択（明日）
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
   const dateYMD = Utilities.formatDate(tomorrow, TZ, "yyyy-MM-dd");
   console.log("\n[Step 3] 日付選択: " + dateYMD);
   setState_(TEST_USER_ID, { dateYMD: dateYMD, step: "部", partPage: 0 });
   _logState("日付選択後");
-  
+
   // Step 4: 部選択
   const availParts = getAvailablePartsForDate_("INPERSON", dateYMD);
   if (!availParts.length) {
@@ -80,7 +80,7 @@ function test_fullFlowInperson() {
   console.log("\n[Step 4] 部選択: " + partLabel);
   setState_(TEST_USER_ID, { partLabel: partLabel, partKey: PARTS[partLabel].key, step: "分数" });
   _logState("部選択後");
-  
+
   // Step 5: 分数選択
   const availMins = getAvailableMinutesForPart_NoCross_(getState_(TEST_USER_ID));
   if (!availMins.length) {
@@ -92,7 +92,7 @@ function test_fullFlowInperson() {
   console.log("\n[Step 5] 分数選択: " + mins + "分 (" + fmtYen_(price) + ")");
   setState_(TEST_USER_ID, { minutes: mins, price: price, step: "空き枠" });
   _logState("分数選択後");
-  
+
   // Step 6: 空き枠選択
   const slots = computeCandidateSlots_(getState_(TEST_USER_ID));
   if (!slots.length) {
@@ -101,7 +101,7 @@ function test_fullFlowInperson() {
   }
   const selectedSlot = slots[0];
   console.log("\n[Step 6] 空き枠選択: " + fmtHM_(selectedSlot));
-  
+
   // Step 7: 一時確保作成
   console.log("\n[Step 7] 一時確保作成");
   const st = getState_(TEST_USER_ID);
@@ -109,9 +109,9 @@ function test_fullFlowInperson() {
   const end = new Date(start.getTime() + mins * 60000);
   const key = issueKey_();
   const expiresAt = new Date(Date.now() + HOLD_TTL_MIN * 60000);
-  
+
   createHold_(start, end, key, TEST_USER_ID, expiresAt);
-  
+
   const res = {
     key: key,
     userId: TEST_USER_ID,
@@ -132,25 +132,33 @@ function test_fullFlowInperson() {
     updatedAtISO: nowISO_(),
     flags: {}
   };
-  
+
   saveReservation_(key, res);
   indexUserKey_(TEST_USER_ID, key);
   console.log("  - key: " + key);
   console.log("  - 状態: " + res.status);
-  
+
   // Step 8: フォーム受理シミュレート
   console.log("\n[Step 8] フォーム受理シミュレート（対面→即確定）");
-  setFormReceivedByKey_(key, "現金");
-  
+  const dummyFormData = {
+    name: "テスト太郎",
+    sex: "男性",
+    birthDate: "1990-01-01",
+    birthTime: "12:00 東京",
+    topics: "仕事,恋愛",
+    details: "テスト詳細"
+  };
+  setFormReceivedByKey_(key, "現金", dummyFormData);
+
   const final = loadReservation_(key);
   console.log("✅ 最終状態: " + final.status);
-  
+
   const elapsed = Date.now() - startTime;
   console.log("\n=== 対面フロー完全テスト完了 ===");
   console.log("総実行時間: " + elapsed + "ms");
-  
+
   if (TEST_SEND_LINE) {
-    notifyAdmin_("【テスト】対面フロー完全テストを実行しました。key: " + key + "、最終状態: " + final.status);
+    try { pushToAdminBot_("【テスト】対面フロー完全テストを実行しました。key: " + key + "、最終状態: " + final.status); } catch (e) { }
   }
 }
 
@@ -160,23 +168,23 @@ function test_fullFlowInperson() {
 function test_fullFlowOnline() {
   console.log("=== オンラインフロー完全テスト開始 ===");
   const startTime = Date.now();
-  
+
   // 既存予約をクリア
   _clearTestUserReservations();
   resetState_(TEST_USER_ID);
-  
+
   // Step 1: 形式選択
   console.log("\n[Step 1] 形式選択: オンライン");
   setState_(TEST_USER_ID, { format: "ONLINE", area: "", step: "日付", partPage: 0 });
   _logState("形式選択後");
-  
+
   // Step 2: 日付選択（明日）
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
   const dateYMD = Utilities.formatDate(tomorrow, TZ, "yyyy-MM-dd");
   console.log("\n[Step 2] 日付選択: " + dateYMD);
   setState_(TEST_USER_ID, { dateYMD: dateYMD, step: "部", partPage: 0 });
   _logState("日付選択後");
-  
+
   // Step 3: 部選択
   const availParts = getAvailablePartsForDate_("ONLINE", dateYMD);
   if (!availParts.length) {
@@ -187,7 +195,7 @@ function test_fullFlowOnline() {
   console.log("\n[Step 3] 部選択: " + partLabel);
   setState_(TEST_USER_ID, { partLabel: partLabel, partKey: PARTS[partLabel].key, step: "分数" });
   _logState("部選択後");
-  
+
   // Step 4: 分数選択
   const availMins = getAvailableMinutesForPart_NoCross_(getState_(TEST_USER_ID));
   if (!availMins.length) {
@@ -199,7 +207,7 @@ function test_fullFlowOnline() {
   console.log("\n[Step 4] 分数選択: " + mins + "分 (" + fmtYen_(price) + ")");
   setState_(TEST_USER_ID, { minutes: mins, price: price, step: "空き枠" });
   _logState("分数選択後");
-  
+
   // Step 5: 空き枠選択
   const slots = computeCandidateSlots_(getState_(TEST_USER_ID));
   if (!slots.length) {
@@ -208,7 +216,7 @@ function test_fullFlowOnline() {
   }
   const selectedSlot = slots[0];
   console.log("\n[Step 5] 空き枠選択: " + fmtHM_(selectedSlot));
-  
+
   // Step 6: 一時確保作成
   console.log("\n[Step 6] 一時確保作成");
   const st = getState_(TEST_USER_ID);
@@ -216,9 +224,9 @@ function test_fullFlowOnline() {
   const end = new Date(start.getTime() + mins * 60000);
   const key = issueKey_();
   const expiresAt = new Date(Date.now() + HOLD_TTL_MIN * 60000);
-  
+
   createHold_(start, end, key, TEST_USER_ID, expiresAt);
-  
+
   const res = {
     key: key,
     userId: TEST_USER_ID,
@@ -239,40 +247,47 @@ function test_fullFlowOnline() {
     updatedAtISO: nowISO_(),
     flags: {}
   };
-  
+
   saveReservation_(key, res);
   indexUserKey_(TEST_USER_ID, key);
   console.log("  - key: " + key);
   console.log("  - 状態: " + res.status);
-  
+
   // Step 7: フォーム受理（→支払い待ち）
   console.log("\n[Step 7] フォーム受理シミュレート（オンライン→支払い待ち）");
-  setFormReceivedByKey_(key, "PayPay");
-  
+  const dummyFormData = {
+    name: "テスト花子",
+    sex: "女性",
+    birthDate: "1995-12-25",
+    birthTime: "20:00 大阪",
+    topics: "結婚,金運",
+    details: "テスト詳細オンライン"
+  };
+  setFormReceivedByKey_(key, "PayPay", dummyFormData);
+
   let current = loadReservation_(key);
   console.log("  - 状態: " + current.status);
-  
-  // Step 8: 支払い報告シミュレート
+
+  // Step 8: 支払い報告シミュレート（→即確定）
   console.log("\n[Step 8] 支払い報告シミュレート");
-  current.status = ST_PAID_REPORTED;
+  // 本来はhandlePaymentCommands_内でやる処理を擬似再現
+  current.status = ST_PAID_CONFIRMED;
   current.paidReportedAtISO = nowISO_();
+  current.paidConfirmedAtISO = nowISO_();
   current.updatedAtISO = nowISO_();
   saveReservation_(key, current);
-  console.log("  - 状態: " + current.status);
-  
-  // Step 9: 支払い確認シミュレート
-  console.log("\n[Step 9] 支払い確認シミュレート");
-  markPaidConfirmedByKey_(key);
-  
+
+  console.log("✅ 支払い報告後の状態（即確定）: " + current.status);
+
   const final = loadReservation_(key);
   console.log("✅ 最終状態: " + final.status);
-  
+
   const elapsed = Date.now() - startTime;
   console.log("\n=== オンラインフロー完全テスト完了 ===");
   console.log("総実行時間: " + elapsed + "ms");
-  
+
   if (TEST_SEND_LINE) {
-    notifyAdmin_("【テスト】オンラインフロー完全テストを実行しました。key: " + key + "、最終状態: " + final.status);
+    try { pushToAdminBot_("【テスト】オンラインフロー完全テストを実行しました。key: " + key + "、最終状態: " + final.status); } catch (e) { }
   }
 }
 
@@ -281,14 +296,14 @@ function test_fullFlowOnline() {
 // ===================================================
 function test_performance() {
   console.log("=== パフォーマンステスト開始 ===\n");
-  
+
   const results = {};
   const iterations = 5;
-  
+
   // 明日の日付
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
   const dateYMD = Utilities.formatDate(tomorrow, TZ, "yyyy-MM-dd");
-  
+
   // 1. isSlotFree_
   console.log("[1] isSlotFree_ 計測中...");
   const start1 = Date.now();
@@ -299,7 +314,7 @@ function test_performance() {
     isSlotFree_(testStart, testEnd);
   }
   results["isSlotFree_"] = (Date.now() - start1) / iterations;
-  
+
   // 2. computeCandidateSlots_
   console.log("[2] computeCandidateSlots_ 計測中...");
   const testState = {
@@ -313,7 +328,7 @@ function test_performance() {
     computeCandidateSlots_(testState);
   }
   results["computeCandidateSlots_"] = (Date.now() - start2) / iterations;
-  
+
   // 3. getAvailablePartsForDate_
   console.log("[3] getAvailablePartsForDate_ 計測中...");
   const start3 = Date.now();
@@ -321,7 +336,7 @@ function test_performance() {
     getAvailablePartsForDate_("ONLINE", dateYMD);
   }
   results["getAvailablePartsForDate_"] = (Date.now() - start3) / iterations;
-  
+
   // 4. getPartAvailability_（API用）
   console.log("[4] getPartAvailability_ 計測中...");
   const start4 = Date.now();
@@ -331,22 +346,22 @@ function test_performance() {
     getPartAvailability_("夜の部", dateYMD);
   }
   results["getPartAvailability_ (3部×" + iterations + "回)"] = (Date.now() - start4) / iterations;
-  
+
   // 5. loadReservation_ / saveReservation_
   console.log("[5] Properties操作 計測中...");
   const testKey = "perf_test_" + Date.now();
   const testData = { test: true, ts: nowISO_() };
-  
+
   const start5 = Date.now();
   for (let i = 0; i < iterations; i++) {
     saveReservation_(testKey, testData);
     loadReservation_(testKey);
   }
   results["load+save Reservation_"] = (Date.now() - start5) / iterations;
-  
+
   // クリーンアップ
   PropertiesService.getScriptProperties().deleteProperty("res_" + testKey);
-  
+
   // 6. getState_ / setState_
   console.log("[6] State操作 計測中...");
   const start6 = Date.now();
@@ -355,16 +370,16 @@ function test_performance() {
     getState_(TEST_USER_ID);
   }
   results["get+set State_"] = (Date.now() - start6) / iterations;
-  
+
   // === 結果表示 ===
   console.log("\n=============================");
   console.log("パフォーマンステスト結果");
   console.log("（" + iterations + "回平均、単位: ms）");
   console.log("=============================");
-  
+
   let maxTime = 0;
   let bottleneck = "";
-  
+
   for (const [name, time] of Object.entries(results)) {
     const timeStr = time.toFixed(1);
     console.log(name + ": " + timeStr + "ms");
@@ -373,7 +388,7 @@ function test_performance() {
       bottleneck = name;
     }
   }
-  
+
   console.log("=============================");
   console.log("⚠️ ボトルネック: " + bottleneck + " (" + maxTime.toFixed(1) + "ms)");
   console.log("=== パフォーマンステスト完了 ===");
@@ -384,27 +399,27 @@ function test_performance() {
 // ===================================================
 function test_cronJobs() {
   console.log("=== Cronジョブテスト開始 ===\n");
-  
+
   console.log("[1] cleanupHoldCron");
   const start1 = Date.now();
   cleanupHoldCron();
   console.log("  完了: " + (Date.now() - start1) + "ms");
-  
+
   console.log("\n[2] autoClosePastReservationsCron");
   const start2 = Date.now();
   autoClosePastReservationsCron();
   console.log("  完了: " + (Date.now() - start2) + "ms");
-  
+
   console.log("\n[3] paymentCancelCron");
   const start3 = Date.now();
   paymentCancelCron();
   console.log("  完了: " + (Date.now() - start3) + "ms");
-  
+
   console.log("\n[4] remindCron");
   const start4 = Date.now();
   remindCron();
   console.log("  完了: " + (Date.now() - start4) + "ms");
-  
+
   console.log("\n=== Cronジョブテスト完了 ===");
 }
 
@@ -413,16 +428,16 @@ function test_cronJobs() {
 // ===================================================
 function test_calendarIntegration() {
   console.log("=== カレンダー連携テスト開始 ===\n");
-  
+
   const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
   tomorrow.setHours(10, 0, 0, 0);
   const end = new Date(tomorrow.getTime() + 30 * 60000);
   const testKey = "cal_test_" + Date.now();
-  
+
   console.log("[1] イベント作成（createHold_）");
   createHold_(tomorrow, end, testKey, TEST_USER_ID, new Date(Date.now() + 30 * 60000));
   console.log("  ✅ イベント作成完了");
-  
+
   console.log("\n[2] イベント検索");
   const cal = CalendarApp.getCalendarById(CALENDAR_ID);
   const events = cal.getEvents(
@@ -436,7 +451,7 @@ function test_calendarIntegration() {
     console.log("  ❌ イベントが見つかりません");
     return;
   }
-  
+
   console.log("\n[3] イベント更新（updateCalendarEventTitle_）");
   const dummyRes = {
     key: testKey,
@@ -452,11 +467,11 @@ function test_calendarIntegration() {
   };
   updateCalendarEventTitle_(dummyRes);
   console.log("  ✅ イベント更新完了");
-  
+
   console.log("\n[4] イベント削除");
   found.deleteEvent();
   console.log("  ✅ イベント削除完了");
-  
+
   console.log("\n=== カレンダー連携テスト完了 ===");
 }
 
@@ -465,7 +480,7 @@ function test_calendarIntegration() {
 // ===================================================
 function test_dateValidation() {
   console.log("=== 日付バリデーションテスト開始 ===\n");
-  
+
   const testCases = [
     { input: "1月30日", expected: true },
     { input: "1/30", expected: true },
@@ -477,15 +492,15 @@ function test_dateValidation() {
     { input: "hogehoge", expected: false },
     { input: "", expected: false },
   ];
-  
+
   let passed = 0;
   let failed = 0;
-  
+
   testCases.forEach(tc => {
     const result = normalizeYMDInput_(tc.input);
     const isValid = !!result;
     const ok = isValid === tc.expected;
-    
+
     if (ok) {
       passed++;
       console.log("✅ PASS: \"" + tc.input + "\" → " + (result || "(無効)"));
@@ -494,7 +509,7 @@ function test_dateValidation() {
       console.log("❌ FAIL: \"" + tc.input + "\" → 期待:" + tc.expected + " 実際:" + isValid);
     }
   });
-  
+
   console.log("\n結果: " + passed + " passed, " + failed + " failed");
   console.log("=== 日付バリデーションテスト完了 ===");
 }
@@ -504,19 +519,19 @@ function test_dateValidation() {
 // ===================================================
 function test_cleanupTestData() {
   console.log("=== テストデータクリーンアップ開始 ===\n");
-  
+
   // テストユーザーの予約を全てクリア
   _clearTestUserReservations();
-  
+
   // ステートをリセット
   resetState_(TEST_USER_ID);
   console.log("✅ ステートをリセット");
-  
+
   // テスト用Propertiesをクリア
   const props = PropertiesService.getScriptProperties();
   const allProps = props.getProperties();
   let cleaned = 0;
-  
+
   for (const key of Object.keys(allProps)) {
     if (key.includes("test_") || key.includes("perf_test_") || key.includes("cal_test_")) {
       props.deleteProperty(key);
@@ -524,7 +539,7 @@ function test_cleanupTestData() {
     }
   }
   console.log("✅ テスト用Properties削除: " + cleaned + "件");
-  
+
   console.log("\n=== テストデータクリーンアップ完了 ===");
 }
 
@@ -535,14 +550,14 @@ function test_runAllTests() {
   console.log("################################################################");
   console.log("#                    全テスト実行                              #");
   console.log("################################################################\n");
-  
+
   const tests = [
     { name: "日付バリデーション", fn: test_dateValidation },
     { name: "パフォーマンス", fn: test_performance },
     { name: "カレンダー連携", fn: test_calendarIntegration },
     { name: "Cronジョブ", fn: test_cronJobs },
   ];
-  
+
   tests.forEach((t, i) => {
     console.log("\n>>> [" + (i + 1) + "/" + tests.length + "] " + t.name + " テスト開始 <<<");
     try {
@@ -551,7 +566,7 @@ function test_runAllTests() {
       console.log("❌ エラー: " + e.toString());
     }
   });
-  
+
   console.log("\n################################################################");
   console.log("#                    全テスト完了                              #");
   console.log("################################################################");
@@ -572,7 +587,7 @@ function _logState(label) {
 function _clearTestUserReservations() {
   console.log("既存予約のクリーンアップ中...");
   let cleared = 0;
-  
+
   const keys = getUserKeys_(TEST_USER_ID);
   keys.forEach(k => {
     const r = loadReservation_(k);
@@ -592,8 +607,8 @@ function _clearTestUserReservations() {
             break;
           }
         }
-      } catch (_) {}
-      
+      } catch (_) { }
+
       // 予約をキャンセル状態に
       r.status = ST_CANCELLED;
       r.updatedAtISO = nowISO_();
@@ -601,6 +616,6 @@ function _clearTestUserReservations() {
       cleared++;
     }
   });
-  
+
   console.log("  クリア済み: " + cleared + "件");
 }
