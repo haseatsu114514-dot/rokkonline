@@ -5,7 +5,7 @@
 // ===== 共通 =====
 const STATE_TTL = 21600;          // 6h
 const SLOT_STEP_MIN = 30;         // 30分刻み
-const INTERVAL_MIN = 45;          // 前後45分インターバル
+const INTERVAL_MIN = 30;          // 前後30分インターバル
 const SAME_DAY_LIMIT_HOURS = 5;   // 当日：開始5時間前を過ぎた枠は受付しない
 const HOLD_TTL_MIN = 30;          // 一時確保 30分（内部はHOLD）
 const QUICK_SLOT_MAX = 8;         // QuickReply最大8

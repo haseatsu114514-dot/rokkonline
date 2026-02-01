@@ -104,6 +104,7 @@ function buildEventDescJP_(r) {
 
   const lines = [];
   lines.push(`【状態】${r.status}`);
+  lines.push(`【氏名】${(r.formData && r.formData.name) || "-"}`);
   lines.push(`【形式】${r.format === "ONLINE" ? "オンライン" : "対面"}`);
   lines.push(`【エリア】${r.area || "-"}`);
   lines.push(`【鑑定】${r.minutes}分`);
@@ -112,11 +113,9 @@ function buildEventDescJP_(r) {
   lines.push(`【支払い期限】${deadlineText}`);
   lines.push(`【Meet】${MEET_URL}`);
   lines.push(`【受付キー】${r.key}`);
-  lines.push(`【userId】${r.userId}`);
 
   // cron/検索互換（古い実装で拾ってる形式も残す）
   lines.push(`key:${r.key}`);
-  lines.push(`userId:${r.userId}`);
 
   if (r.holdExpiresISO) lines.push(`expiresAt:${r.holdExpiresISO}`);
 
