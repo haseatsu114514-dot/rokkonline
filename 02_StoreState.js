@@ -52,21 +52,21 @@ function issueKey_() {
 function getState_(u) {
   const c = CacheService.getScriptCache().get("st_" + u);
   if (c) {
-    try { return JSON.parse(c); } catch(_) {}
+    try { return JSON.parse(c); } catch (_) { }
   }
   const p = PropertiesService.getScriptProperties().getProperty("st_" + u);
   if (p) {
-    try { return JSON.parse(p); } catch(_) {}
+    try { return JSON.parse(p); } catch (_) { }
   }
   return {};
 }
 function setState_(u, o) {
   const st = { ...getState_(u), ...o };
   const s = JSON.stringify(st);
-  CacheService.getScriptCache().put("st_" + u, s, STATE_TTL);
-  PropertiesService.getScriptProperties().setProperty("st_" + u, s);
+  try { CacheService.getScriptCache().put("st_" + u, s, STATE_TTL); } catch (e) { console.warn("Cache put failed", e); }
+  try { PropertiesService.getScriptProperties().setProperty("st_" + u, s); } catch (e) { console.warn("Prop set failed", e); }
 }
 function resetState_(u) {
-  CacheService.getScriptCache().remove("st_" + u);
-  PropertiesService.getScriptProperties().deleteProperty("st_" + u);
+  try { CacheService.getScriptCache().remove("st_" + u); } catch (e) { console.warn("Cache remove failed", e); }
+  try { PropertiesService.getScriptProperties().deleteProperty("st_" + u); } catch (e) { console.warn("Prop delete failed", e); }
 }

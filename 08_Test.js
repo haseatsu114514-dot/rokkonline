@@ -619,3 +619,47 @@ function _clearTestUserReservations() {
 
   console.log("  クリア済み: " + cleared + "件");
 }
+
+// ===================================================
+// ★10. 「鑑定予約」コマンドテスト
+// ===================================================
+function test_startCommand() {
+  console.log("=== 鑑定予約コマンドテスト開始 ===");
+
+  // 状態クリア
+  try {
+    resetState_(TEST_USER_ID);
+    console.log("✅ 状態リセット成功");
+  } catch (e) {
+    console.log("❌ 状態リセットエラー: " + e.toString());
+  }
+
+  // イベントシミュレート
+  const ev = {
+    type: "message",
+    replyToken: "DUMMY_TOKEN",
+    source: { userId: TEST_USER_ID },
+    message: { type: "text", text: CMD_START }
+  };
+
+  console.log("送信メッセージ: " + ev.message.text);
+
+  try {
+    handleLineEvent_(ev);
+    console.log("✅ handleLineEvent_ 正常終了");
+    console.log("※注: 実際のLINE送信はUrlFetchAppの結果次第です");
+  } catch (e) {
+    console.log("❌ handleLineEvent_ エラー: " + e.toString());
+  }
+  
+  // 実行後のステート確認
+  const st = getState_(TEST_USER_ID);
+  console.log("実行後のステート: " + JSON.stringify(st));
+  if (st && st.step === "形式") {
+    console.log("✅ ステートが「形式」に更新されました");
+  } else {
+    console.log("⚠️ ステート更新確認できず (step=" + (st ? st.step : "null") + ")");
+  }
+  
+  console.log("=== 鑑定予約コマンドテスト終了 ===");
+}
