@@ -353,15 +353,17 @@ function autoClosePastReservationForUser_(userId) {
 
 // ★★★ 予約状況API用：特定の部の空き状況を判定（修正版） ★★★
 // ★改修：eventsCache対応で高速化
+// ★★★ 予約状況API用：特定の部の空き状況を判定（修正版：詳細スロット情報対応） ★★★
+// ★改修：eventsCache対応で高速化 + slots配列返却 + status判定ロジック変更
 function getPartAvailability_(partLabel, dateYMD, eventsCache) {
   const part = PARTS[partLabel];
   if (!part) {
-    return { status: "full", count: 0 };
+    return { status: "full", count: 0, slots: [] };
   }
 
   const ymd = String(dateYMD || "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
-    return { status: "full", count: 0 };
+    return { status: "full", count: 0, slots: [] };
   }
 
   const [y, m, d] = ymd.split("-").map(Number);
@@ -386,7 +388,7 @@ function getPartAvailability_(partLabel, dateYMD, eventsCache) {
     const partEndTime = Utilities.parseDate(partEndTimeStr, TZ, "yyyy-MM-dd HH:mm:ss");
 
     if (nowJST >= partEndTime) {
-      return { status: "full", count: 0 };
+      return { status: "full", count: 0, slots: [] };
     }
   }
 
@@ -404,42 +406,55 @@ function getPartAvailability_(partLabel, dateYMD, eventsCache) {
   const endLimit = Utilities.parseDate(endLimitStr, TZ, "yyyy-MM-dd HH:mm:ss");
 
   // 30分刻みで空き枠をカウント
+  let totalSlots = 0;
   let count = 0;
   const minMinutes = 30;
+  const slotStatuses = []; // true:空き, false:不可
 
   // もしキャッシュが渡されていなければ内部で取得（後方互換）
   const cache = eventsCache || getDayEvents_(ymd);
 
   for (let t = new Date(startBase); t < endLimit; t = new Date(t.getTime() + SLOT_STEP_MIN * 60000)) {
+    totalSlots++;
+
     // ★★★ 修正：各スロットの開始時刻の5時間前をチェック（日本時間） ★★★
+    let isTimeOk = true;
     if (isToday) {
       // スロットの開始時刻の5時間前を計算（日本時間）
       // tは日本時間で作成されているので、そのまま5時間前を計算
       const slotDeadline = new Date(t.getTime() - SAME_DAY_LIMIT_HOURS * 3600000);
       // 現在時刻（日本時間）が「このスロットの開始時刻の5時間前」以上だったらスキップ
-      // 例：21:00開始のスロットは16:00まで予約可能、16:00ちょうどでは予約不可
       if (nowJST.getTime() >= slotDeadline.getTime()) {
-        continue;
+        isTimeOk = false;
       }
     }
 
+    if (!isTimeOk) {
+      slotStatuses.push(false); // 時間切れ
+      continue;
+    }
+
     const end = new Date(t.getTime() + minMinutes * 60000);
-    if (end > endLimit) continue;
+    if (end > endLimit) {
+      slotStatuses.push(false); // 時間外
+      continue;
+    }
 
     if (isSlotFree_(t, end, cache)) {
       count++;
+      slotStatuses.push(true); // 空き
+    } else {
+      slotStatuses.push(false); // 予約済み
     }
   }
 
   // ステータス判定
-  let status;
-  if (count >= 3) {
-    status = "available";
-  } else if (count >= 1) {
-    status = "limited";
-  } else {
-    status = "full";
+  let status = "full";
+  if (count === totalSlots && count > 0) {
+    status = "available"; // 全て空いている
+  } else if (count > 0) {
+    status = "limited";   // まだ空きがある（一部埋まっている）
   }
 
-  return { status, count };
+  return { status, count, slots: slotStatuses };
 }
