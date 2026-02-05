@@ -67,8 +67,8 @@ function askDate_(token, userId) {
 
   // ★対面と非対面でメッセージを変える
   const msgText = isInperson
-    ? "日付を選んでください。\n\n⚠️ 対面鑑定は【当日の受付ができません】\n事前に余裕を持ってご予約ください。"
-    : "日付を選んでください。\n※当日は「開始5時間前」を過ぎた枠は受付できません。";
+    ? "日付を選んでください。\n※対面は当日不可"
+    : "日付を選んでください。";
 
   return replyQuickReplyWithHeader_(
     token,
@@ -82,8 +82,7 @@ function askDate_(token, userId) {
 function askDateInput_(token) {
   return replyButtons_(
     token,
-    "日付を入力してください。\n" +
-    "入力例：1月30日 / 1/30 / 2026/1/30 / 2026年1月30日",
+    "日付を入力（例: 2/10）",
     [{ label: BACK_TO_DATE, text: BACK_TO_DATE }]
   );
 }
@@ -296,13 +295,13 @@ function askMinutes_(token, userId) {
   labels.push(BACK_TO_FORMAT);
 
   const extraNote = isInperson
-    ? "\n※同席料+500円を含めた値段です"
+    ? "\n※同席料+500円込"
     : "";
 
   return replyQuickReplyWithHeader_(
     token,
     "【鑑定分数】",
-    "鑑定分数を選んでください。" + extraNote,
+    "分数を選んでください。" + extraNote,
     labels
   );
 }
@@ -332,28 +331,9 @@ function replySlotQuickReply_(token, userId, showTakenNotice) {
   const list = computeCandidateSlots_(st).slice(0, QUICK_SLOT_MAX);
 
   if (!list.length) {
-    if (isToday_(st.dateYMD)) {
-      const any = hasAnySlotTodayAcrossParts_(st);
-
-      if (any) {
-        return replyButtons_(
-          token,
-          "この時間帯では空き枠が見つかりませんでした。\n別の時間帯をお試しください。",
-          [{ label: BACK_TO_PART, text: BACK_TO_PART }]
-        );
-      }
-
-      resetState_(userId);
-      return replyButtons_(
-        token,
-        "【本日の受付は終了しました】\n当日は「開始5時間前」を過ぎた枠は受付できません。\n別日程をご検討ください。",
-        [{ label: BACK_TO_PART, text: BACK_TO_PART }]
-      );
-    }
-
     return replyButtons_(
       token,
-      "この条件では空き枠が見つかりませんでした。\n日付／時間帯を変えてお試しください。",
+      "空きがありません。別日時をお試しください。",
       [{ label: BACK_TO_PART, text: BACK_TO_PART }]
     );
   }
@@ -362,7 +342,7 @@ function replySlotQuickReply_(token, userId, showTakenNotice) {
   setState_(userId, { slotListJson: JSON.stringify(slotList), step: "空き枠" });
 
   const head = showTakenNotice
-    ? "※他のお客様が先にご予約されたため、この開始時刻はご案内できませんでした。\n別の開始時刻をお選びください。\n\n"
+    ? "※先に予約が入りました。別の時間を選んでください。\n\n"
     : "";
 
   const labels = slotList.map((x) => x.hm);
@@ -439,7 +419,7 @@ function handleLineEvent_(ev) {
     }
 
     return replyQuickReply_(token,
-      "現在の予約はいったん無効にして、新しく予約を取り直す形になります。\nよろしいですか？",
+      "予約を変更しますか？",
       [CMD_CHANGE_DATE_YES, CMD_CHANGE_DATE_NO]
     );
   }
@@ -498,7 +478,7 @@ function handleLineEvent_(ev) {
 
     return replyButtons_(
       token,
-      "予約を取り消しました。\n\n「鑑定予約」から新しい日時を選んでください。",
+      "予約を取り消しました。",
       [{ label: CMD_START, text: CMD_START }]
     );
   }
@@ -556,7 +536,7 @@ function handleLineEvent_(ev) {
     cancelReservationByUser_(r);
     return replyButtons_(
       token,
-      "予約をキャンセルしました。\n改めてご希望の場合は「鑑定予約」からお申し込みください。",
+      "キャンセルしました。",
       [{ label: CMD_START, text: CMD_START }]
     );
   }
@@ -661,7 +641,7 @@ function handleLineEvent_(ev) {
     }
     if (text === "対面鑑定") {
       setState_(userId, { format: "INPERSON", step: "エリア", partPage: 0 });
-      return replyButtons_(token, "【対面エリア】\nエリアを選んでください。\n※徒歩5分程の指定のカフェで鑑定を行います。", [
+      return replyButtons_(token, "エリアを選んでください。", [
         { label: "名駅", text: "名駅" },
         { label: "栄", text: "栄" },
         { label: "金山", text: "金山" },
@@ -723,9 +703,7 @@ function handleLineEvent_(ev) {
     if (!ymd) {
       return replyButtons_(
         token,
-        "日付を読み取れませんでした。\n" +
-        "※ご予約受付は【本日から31日以内】です。\n\n" +
-        "入力例：1月30日 / 1/30 / 2026/1/30 / 2026年1月30日",
+        "日付が正しくありません。\n例: 2/10",
         [{ label: BACK_TO_DATE, text: BACK_TO_DATE }]
       );
     }
@@ -734,7 +712,7 @@ function handleLineEvent_(ev) {
     if (st.format === "INPERSON" && isToday_(ymd)) {
       return replyButtons_(
         token,
-        "⚠️ 対面鑑定は【当日の受付ができません】\n\n別の日付を選んでください。",
+        "対面は当日不可です。別の日付を選んでください。",
         [{ label: BACK_TO_DATE, text: BACK_TO_DATE }]
       );
     }
