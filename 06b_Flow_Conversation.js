@@ -384,12 +384,23 @@ function replySlotQuickReply_(token, userId, showTakenNotice) {
 // ★改修：問い合わせボタン処理
 // ===================================================
 function handleInquiry_(token, userId) {
-  notifyAdmin_(
-    "【問い合わせあり】\n" +
-    "ユーザーから問い合わせがありました。\n" +
-    "LINEを確認して対応してください。"
-  );
-  return replyText_(token, "お問い合わせを受け付けました。順次ご連絡します。");
+  // 問い合わせモードを開始
+  setState_(userId, { step: "問い合わせ" });
+  return replyText_(token, "お問い合わせ内容を入力してください。\n次のメッセージをそのまま担当者にお伝えします。");
+}
+
+// 問い合わせ内容を管理Botに転送
+function handleInquiryMessage_(token, userId, text) {
+  try {
+    pushToAdminBot_(
+      "🎯【問い合わせ】\n" +
+      "━━━━━━━━━━━━━━\n" +
+      text
+    );
+  } catch (_) { }
+
+  resetState_(userId);
+  return replyText_(token, "お問い合わせを受け付けました。\n順次ご連絡します。");
 }
 
 // ===================================================
@@ -404,12 +415,18 @@ function handleLineEvent_(ev) {
   const text = (ev.message.text || "").trim();
   if (!userId || !token) return;
 
-  // ★改修：問い合わせボタン
+  // ★問い合わせモード中の内容受付
+  const st = getState_(userId) || {};
+  if (st.step === "問い合わせ") {
+    return handleInquiryMessage_(token, userId, text);
+  }
+
+  // ★問い合わせ開始
   if (text === CMD_INQUIRY) {
     return handleInquiry_(token, userId);
   }
 
-  // ★追加：日時変更ボタン
+  // ★日時変更ボタン
   if (text === CMD_CHANGE_DATE) {
     const r = getActiveReservationForUser_(userId);
     if (!r) {
@@ -575,7 +592,7 @@ function handleLineEvent_(ev) {
     );
   }
 
-  const st = getState_(userId) || {};
+  // (stは419行目で宣言済み)
 
   // 時間帯ページ送り（Buttons）
   if (text === PART_NEXT) {
