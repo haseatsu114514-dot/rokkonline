@@ -502,13 +502,13 @@ function handleLineEvent_(ev) {
     if (hasHold) {
       replyButtons_(
         token,
-        "一時確保を解除しました。\n「鑑定予約」から進められます。",
+        "予約をリセットしました。\n「鑑定予約」から進められます。",
         [{ label: CMD_START, text: CMD_START }]
       );
     } else {
       replyButtons_(
         token,
-        "会話をリセットしました。\n「鑑定予約」から進められます。",
+        "リセットしました。\n「鑑定予約」から進められます。",
         [{ label: CMD_START, text: CMD_START }]
       );
     }
@@ -555,8 +555,8 @@ function handleLineEvent_(ev) {
         `状態：${stTxt}\n\n`;
 
       if (active.status === ST_HOLD) {
-        hint += `変更する場合は「${CMD_RESET}」で一時確保を解除してください。`;
-        return replyButtons_(token, hint, [{ label: "一時確保を解除", text: CMD_RESET }]);
+        hint += `変更する場合は「やり直す」を押してください。`;
+        return replyButtons_(token, hint, [{ label: "やり直す", text: CMD_RESET }]);
       }
 
       return replyText_(token, hint + "このまま案内に沿ってお進みください。");
@@ -807,23 +807,24 @@ function handleLineEvent_(ev) {
       const shortUrl = buildShortFormUrl_(key);
 
       // ★高速化：PushではなくReplyを使い、かつ管理者通知の前に実行
-      // ★高速化：PushではなくReplyを使い、かつ管理者通知の前に実行
       const userReply = replyQuickReply_(
         token,  // userIdではなくtokenを使う
-        `⏳ 仮押さえしました（期限：${fmtHM_(expiresAt)}）\n\n` +
+        `✅ 日時を選択しました\n\n` +
         detailInfo + "\n\n" +
-        "👇 今すぐフォームを送って【予約確定】してください",
+        "👇 フォームを送信して予約を完了してください",
         [
           { type: "uri", label: "フォームを開く", uri: shortUrl },
-          { type: "message", label: "一時確保をキャンセル", text: CMD_RESET },
+          { type: "message", label: "やり直す", text: CMD_RESET },
         ]
       );
 
       // ★管理者通知（ユーザー返信の後に移動して体感速度向上）
-      notifyAdmin_(
-        buildAdminSummary_(res) + "\n" +
-        `有効期限：${fmtHM_(expiresAt)}`
-      );
+      try {
+        notifyAdmin_(
+          buildAdminSummary_(res) + "\n" +
+          `有効期限：${fmtHM_(expiresAt)}`
+        );
+      } catch (_) { /* 通知失敗でもユーザー体験に影響させない */ }
 
       // ★ 重要イベントログ：一時確保作成（ユーザー返信後に移動）
       logToSheet_({
