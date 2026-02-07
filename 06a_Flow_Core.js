@@ -298,8 +298,8 @@ function setFormReceivedByKey_(key, payMethod, formData) {
             "どちらに変更しますか？"
         },
         buildButtonsMessage_("【支払い方法】", [
-          { label: "PayPayに変更", text: "支払い方法をPayPayに変更" },
-          { label: "振込に変更", text: "支払い方法を振込に変更" },
+          { label: "PayPayに変更", text: CMD_CHANGE_PAY_PAYPAY },
+          { label: "振込に変更", text: CMD_CHANGE_PAY_BANK },
         ])
       ]);
       return;
