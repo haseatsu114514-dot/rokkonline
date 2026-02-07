@@ -20,9 +20,10 @@ const INPERSON_REMIND_HOURS_BEFORE = 2; // 対面 2時間前：集合場所
 // リッチメニュー互換のため固定
 const CMD_START = "鑑定予約";
 
-// 一時確保解除（旧互換）
-// ※ここを変えると既存導線が壊れやすいので"内部コマンド"は維持
-const CMD_RESET = "一時確保をキャンセル";
+// リセット（ユーザー表示は「やり直す」）
+// 旧互換: 既存導線を壊さないため、内部コマンドも受け付ける
+const CMD_RESET = "やり直す";
+const CMD_RESET_INTERNAL = "一時確保をキャンセル";
 const CMD_RESET_LEGACY = "リセット";
 
 // ===== ミニマム運用で使う操作 =====
@@ -33,6 +34,8 @@ const CMD_CHECK = "予約確認";          // ★追加：予約確認コマン�
 const CMD_CHANGE_DATE = "日時を変更する";           // ★追加：日時変更
 const CMD_CHANGE_DATE_YES = "はい、変更したい";     // ★追加：日時変更確認YES
 const CMD_CHANGE_DATE_NO = "やっぱりやめる";        // ★追加：日時変更確認NO
+const CMD_CHANGE_PAY_PAYPAY = "支払い方法をPayPayに変更";
+const CMD_CHANGE_PAY_BANK = "支払い方法を振込に変更";
 
 // ===== 部（時間帯）=====
 const PARTS = {
