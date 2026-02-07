@@ -384,6 +384,38 @@ function handleInquiryMessage_(token, userId, text) {
 }
 
 // ===================================================
+// 支払い方法変更（オンライン）
+// ===================================================
+function handleChangePayMethod_(userId, token, text) {
+  if (text !== CMD_CHANGE_PAY_PAYPAY && text !== CMD_CHANGE_PAY_BANK) return false;
+
+  const r = getActiveReservationForUser_(userId);
+  if (!r) {
+    replyText_(token, "対象の予約が見つかりませんでした。");
+    return true;
+  }
+  if (r.format !== "ONLINE") {
+    replyText_(token, "この操作はオンライン鑑定のみ可能です。");
+    return true;
+  }
+
+  const newMethod = (text === CMD_CHANGE_PAY_PAYPAY) ? "PayPay" : "振込";
+  r.payMethod = newMethod;
+  r.updatedAtISO = nowISO_();
+  saveReservation_(r.key, r);
+
+  try { notifySheetUpsert_(r); } catch (_) { }
+  try { updateCalendarEventTitle_(r); } catch (_) { }
+
+  try {
+    notifyAdmin_("【支払い方法変更】\n" + buildAdminSummary_(r) + `\n→ ${newMethod}`);
+  } catch (_) { }
+
+  replyText_(token, buildOnlinePayInfoText_(newMethod, r.startISO));
+  return true;
+}
+
+// ===================================================
 // LINE 会話フロー（ミニマム）
 // ===================================================
 function handleLineEvent_(ev) {
@@ -417,7 +449,8 @@ function handleLineEvent_(ev) {
     }
     const fmtType = r.format === "ONLINE" ? "オンライン" : "対面";
     const area = (r.format === "INPERSON" && r.area) ? `（${r.area}）` : "";
-    const stTxt = (r.status === ST_HOLD) ? "一時確保中" : r.status;
+    let stTxt = userStatusLabel_(r);
+    if (r.status === ST_HOLD) stTxt += holdRemainingText_(r);
 
     let info =
       "📋 ご予約内容\n" +
@@ -431,6 +464,7 @@ function handleLineEvent_(ev) {
 
     const actions = [];
     if (r.status === ST_HOLD) {
+      actions.push({ type: "uri", label: "フォームを開く", uri: buildShortFormUrl_(r.key) });
       actions.push({ type: "message", label: "やり直す", text: CMD_RESET });
     } else if ([ST_WAIT_PAY, ST_PAID_REPORTED].includes(r.status)) {
       actions.push({ type: "message", label: "支払い報告", text: CMD_PAID_REPORT });
@@ -531,7 +565,7 @@ function handleLineEvent_(ev) {
 
   // 一時確保解除（互換：旧「リセット」もOK）
   // 一時確保解除（互換：旧「リセット」もOK）
-  if (text === CMD_RESET || text === CMD_RESET_LEGACY) {
+  if (text === CMD_RESET || text === CMD_RESET_INTERNAL || text === CMD_RESET_LEGACY) {
     // ★高速化：先に判定だけ行う（API呼び出しや重い処理は後回し）
     const active = getActiveReservationForUser_(userId);
     const hasHold = (active && active.status === ST_HOLD);
@@ -565,6 +599,9 @@ function handleLineEvent_(ev) {
     if (handlePaymentCommands_(userId, token, text)) return;
   }
 
+  // 支払い方法変更
+  if (handleChangePayMethod_(userId, token, text)) return;
+
   // 予約キャンセル（支払い待ちのみ）
   if (text === CMD_CANCEL) {
     const r = getActiveReservationForUser_(userId);
@@ -586,7 +623,8 @@ function handleLineEvent_(ev) {
   if (text === CMD_START) {
     const active = getActiveReservationForUser_(userId);
     if (active) {
-      const stTxt = (active.status === ST_HOLD) ? "一時確保中" : active.status;
+      let stTxt = userStatusLabel_(active);
+      if (active.status === ST_HOLD) stTxt += holdRemainingText_(active);
       let hint =
         "すでに進行中のご予約があります。\n\n" +
         `日時：${formatRangeText_(active)}\n` +
@@ -847,7 +885,7 @@ function handleLineEvent_(ev) {
         token,  // userIdではなくtokenを使う
         `✅ 日時を選択しました\n\n` +
         detailInfo + "\n\n" +
-        "👇 フォームを送信して予約を完了してください",
+        `👇 ${HOLD_TTL_MIN}分以内にフォームを送信して予約を完了してください`,
         [
           { type: "uri", label: "フォームを開く", uri: shortUrl },
           { type: "message", label: "やり直す", text: CMD_RESET },
