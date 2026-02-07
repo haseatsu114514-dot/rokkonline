@@ -881,7 +881,8 @@ function handleLineEvent_(ev) {
       const shortUrl = buildShortFormUrl_(key);
 
       // ★高速化：PushではなくReplyを使い、かつ管理者通知の前に実行
-      const userReply = replyQuickReply_(
+      // ★修正：replyQuickReply_はstring配列のみ対応。URI型アクションを含むため replyTextQuickReply_ を使用
+      const userReply = replyTextQuickReply_(
         token,  // userIdではなくtokenを使う
         `✅ 日時を選択しました\n\n` +
         detailInfo + "\n\n" +

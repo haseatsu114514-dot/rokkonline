@@ -479,7 +479,7 @@ function handlePaymentCommands_(userId, token, text) {
   }
   // ★改修：確認済みも許可（重複報告対応）
   if (![ST_WAIT_PAY, ST_PAID_REPORTED, ST_PAID_CONFIRMED].includes(r.status)) {
-    replyText_(token, `現在の状態：${r.status}\nこの操作は不要です。`);
+    replyText_(token, `現在の状態：${userStatusLabel_(r)}\nこの操作は不要です。`);
     return true;
   }
   // 既に確認済みなら再送信
