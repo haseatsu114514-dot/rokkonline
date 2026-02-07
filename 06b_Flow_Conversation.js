@@ -72,7 +72,7 @@ function askDate_(token, userId) {
 
   return replyQuickReplyWithHeader_(
     token,
-    "【日付】",
+    "【STEP 3/5】日付",
     msgText,
     labels
   );
@@ -228,9 +228,9 @@ function askPart_(token, userId, dateYMD, format) {
 
   return replyButtons_(
     token,
-    "【時間帯】\n時間帯を選んでください。\n\n" +
+    "【STEP 4/5】時間帯\n時間帯を選んでください。\n\n" +
     lines + "\n\n" +
-    `※選択中の鑑定分数：${minutes}分`,
+    `※選択中：${minutes}分（${fmtYen_(st.price || PRICE_TABLE[minutes])}）`,
     actions.slice(0, 4)
   );
 }
@@ -258,7 +258,7 @@ function getAvailableMinutesForPart_NoCross_(st) {
   const startBase = new Date(base); startBase.setHours(sh, sm, 0, 0);
   const endLimit = new Date(base); endLimit.setHours(eh, em, 0, 0);
 
-  const options = [30, 45, 60, 75, 90];
+  const options = [30, 45, 60];
   const okSet = new Set();
 
   for (let t = new Date(startBase); t < endLimit; t = new Date(t.getTime() + SLOT_STEP_MIN * 60000)) {
@@ -285,7 +285,7 @@ function askMinutes_(token, userId) {
   const isInperson = st.format === "INPERSON";
 
   // 全ての分数オプションを表示（後で日付・部で絞る）
-  const options = [30, 45, 60, 75, 90];
+  const options = [30, 45, 60];
 
   const labels = options.map((mins) => {
     const basePrice = PRICE_TABLE[mins];
@@ -300,7 +300,7 @@ function askMinutes_(token, userId) {
 
   return replyQuickReplyWithHeader_(
     token,
-    "【鑑定分数】",
+    "【STEP 2/5】鑑定分数",
     "分数を選んでください。" + extraNote,
     labels
   );
@@ -354,7 +354,7 @@ function replySlotQuickReply_(token, userId, showTakenNotice) {
 
   return replyQuickReplyWithHeader_(
     token,
-    "【開始時刻】",
+    "【STEP 5/5】開始時刻",
     priceLine + head + "開始時刻を選んでください。",
     labels
   );
@@ -404,6 +404,45 @@ function handleLineEvent_(ev) {
   // ★問い合わせ開始
   if (text === CMD_INQUIRY) {
     return handleInquiry_(token, userId);
+  }
+
+  // ★予約確認
+  if (text === CMD_CHECK) {
+    const r = getActiveReservationForUser_(userId);
+    if (!r) {
+      return replyButtons_(token,
+        "現在、有効な予約はありません。",
+        [{ label: CMD_START, text: CMD_START }]
+      );
+    }
+    const fmtType = r.format === "ONLINE" ? "オンライン" : "対面";
+    const area = (r.format === "INPERSON" && r.area) ? `（${r.area}）` : "";
+    const stTxt = (r.status === ST_HOLD) ? "一時確保中" : r.status;
+
+    let info =
+      "📋 ご予約内容\n" +
+      "━━━━━━━━━━━━━━\n" +
+      `形式：${fmtType}${area}\n` +
+      `日時：${formatRangeText_(r)}\n` +
+      `分数：${r.minutes}分\n` +
+      `料金：${fmtYen_(r.price)}\n` +
+      `状態：${stTxt}\n` +
+      "━━━━━━━━━━━━━━";
+
+    const actions = [];
+    if (r.status === ST_HOLD) {
+      actions.push({ type: "message", label: "やり直す", text: CMD_RESET });
+    } else if ([ST_WAIT_PAY, ST_PAID_REPORTED].includes(r.status)) {
+      actions.push({ type: "message", label: "支払い報告", text: CMD_PAID_REPORT });
+      actions.push({ type: "message", label: "日時を変更する", text: CMD_CHANGE_DATE });
+    } else if (r.status === ST_INPERSON_FIXED) {
+      actions.push({ type: "message", label: "日時を変更する", text: CMD_CHANGE_DATE });
+    }
+
+    if (actions.length) {
+      return replyTextQuickReply_(token, info, actions);
+    }
+    return replyText_(token, info);
   }
 
   // ★日時変更ボタン
@@ -564,7 +603,7 @@ function handleLineEvent_(ev) {
 
     return replyButtons_(
       token,
-      "【予約手続き】\nまず鑑定形式を選んでください。",
+      "【STEP 1/5】鑑定形式\nまず鑑定形式を選んでください。",
       [
         { label: "オンライン鑑定", text: "オンライン鑑定" },
         { label: "対面鑑定", text: "対面鑑定" },
@@ -594,7 +633,7 @@ function handleLineEvent_(ev) {
     });
     return replyButtons_(
       token,
-      "【鑑定形式】\n鑑定形式を選んでください。",
+      "【STEP 1/5】鑑定形式\n鑑定形式を選んでください。",
       [
         { label: "オンライン鑑定", text: "オンライン鑑定" },
         { label: "対面鑑定", text: "対面鑑定" },
@@ -648,12 +687,12 @@ function handleLineEvent_(ev) {
         { label: BACK_TO_FORMAT, text: BACK_TO_FORMAT },
       ]);
     }
-    return replyText_(token, "ボタンから選んでください。");
+    return replyText_(token, "「オンライン鑑定」か「対面鑑定」を選んでください。");
   }
 
   // ② エリア（対面）→ 分数へ
   if (st.step === "エリア") {
-    if (!INPERSON_PLACES[text]) return replyText_(token, "ボタンから選んでください。");
+    if (!INPERSON_PLACES[text]) return replyText_(token, "エリア（名駅/栄/金山）を選んでください。");
     setState_(userId, { area: text, step: "分数", partPage: 0 });
     return askMinutes_(token, userId);
   }
@@ -661,13 +700,13 @@ function handleLineEvent_(ev) {
   // ③ 分数 → 日付へ
   if (st.step === "分数") {
     const minutes = pickMinutesFromText_(text);
-    if ([30, 45, 60, 75, 90].includes(minutes)) {
+    if ([30, 45, 60].includes(minutes)) {
       const isInperson = st.format === "INPERSON";
       const price = isInperson ? (PRICE_TABLE[minutes] + INPERSON_EXTRA) : PRICE_TABLE[minutes];
       setState_(userId, { minutes, price, step: "日付" });
       return askDate_(token, userId);
     }
-    return replyText_(token, "表示された候補から選んでください。");
+    return replyText_(token, "下部の候補（30分/45分/60分）から選んでください。");
   }
 
   // ④ 日付
@@ -689,7 +728,7 @@ function handleLineEvent_(ev) {
       return askPart_(token, userId, ymd, st.format);
     }
 
-    return replyText_(token, "表示された候補から選んでください。");
+    return replyText_(token, "下部の日付候補から選ぶか、「もっと先の日付」を押してください。");
   }
 
   // ④-2 日付入力
@@ -723,7 +762,7 @@ function handleLineEvent_(ev) {
 
   // ⑤ 部 → 空き枠へ
   if (st.step === "部") {
-    if (!PARTS[text]) return replyText_(token, "ボタンから選んでください。");
+    if (!PARTS[text]) return replyText_(token, "時間帯（昼の部/夕の部/夜の部）を選んでください。");
     setState_(userId, { partLabel: text, partKey: PARTS[text].key, step: "空き枠" });
     return replySlotQuickReply_(token, userId, false);
   }
@@ -736,11 +775,11 @@ function handleLineEvent_(ev) {
       return askPart_(token, userId, st.dateYMD, st.format);
     }
 
-    if (!/^\d{2}:\d{2}$/.test(text)) return replyText_(token, "表示された候補から選んでください。");
+    if (!/^\d{2}:\d{2}$/.test(text)) return replyText_(token, "下部の開始時刻（例: 14:00）から選んでください。");
 
     const slotList = safeJsonParse_(st.slotListJson) || [];
     const slot = slotList.find((x) => x && x.hm === text);
-    if (!slot) return replyText_(token, "表示された候補から選んでください。");
+    if (!slot) return replyText_(token, "下部の開始時刻から選んでください。");
 
     const start = new Date(slot.startISO);
     const end = new Date(start.getTime() + Number(st.minutes) * 60000);
