@@ -29,6 +29,8 @@ const CMD_RESET_LEGACY = "リセット";
 // ===== ミニマム運用で使う操作 =====
 const CMD_PAID_REPORT = "支払い報告（支払いました）";
 const CMD_CANCEL = "キャンセルする";   // ミニマムで必須
+const CMD_CANCEL_CONFIRM = "はい、キャンセルする";
+const CMD_CANCEL_ABORT = "キャンセルしない";
 const CMD_INQUIRY = "問い合わせる";    // ★追加：問い合わせボタン
 const CMD_CHECK = "予約確認";          // ★追加：予約確認コマンド
 const CMD_CHANGE_DATE = "日時を変更する";           // ★追加：日時変更
