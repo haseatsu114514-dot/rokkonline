@@ -438,6 +438,27 @@ function handleLineEvent_(ev) {
     return handleInquiry_(token, userId);
   }
 
+  // ★キャンセル確認（確定）
+  if (text === CMD_CANCEL_CONFIRM) {
+    if (st.step !== "キャンセル確認") {
+      return replyText_(token, "キャンセル確認中の予約が見つかりませんでした。");
+    }
+    const r = getActiveReservationForUser_(userId);
+    if (!r) {
+      resetState_(userId);
+      return replyButtons_(token, "対象の予約が見つかりませんでした。", [{ label: CMD_START, text: CMD_START }]);
+    }
+    cancelReservationByUser_(r);
+    resetState_(userId);
+    return replyButtons_(token, "キャンセルしました。", [{ label: CMD_START, text: CMD_START }]);
+  }
+
+  // ★キャンセル確認（やめる）
+  if (text === CMD_CANCEL_ABORT) {
+    if (st.step === "キャンセル確認") resetState_(userId);
+    return replyText_(token, "キャンセルをやめました。");
+  }
+
   // ★予約確認
   if (text === CMD_CHECK) {
     const r = getActiveReservationForUser_(userId);
@@ -602,20 +623,15 @@ function handleLineEvent_(ev) {
   // 支払い方法変更
   if (handleChangePayMethod_(userId, token, text)) return;
 
-  // 予約キャンセル（支払い待ちのみ）
+  // 予約キャンセル
   if (text === CMD_CANCEL) {
     const r = getActiveReservationForUser_(userId);
     if (!r) return replyButtons_(token, "対象の予約が見つかりませんでした。", [{ label: CMD_START, text: CMD_START }]);
-
-    if (r.format !== "ONLINE" || r.status !== ST_WAIT_PAY) {
-      return replyText_(token, "この操作は「オンライン（支払い待ち）」の予約のみ可能です。");
-    }
-
-    cancelReservationByUser_(r);
-    return replyButtons_(
+    setState_(userId, { step: "キャンセル確認" });
+    return replyQuickReply_(
       token,
-      "キャンセルしました。",
-      [{ label: CMD_START, text: CMD_START }]
+      "予約をキャンセルしますか？",
+      [CMD_CANCEL_CONFIRM, CMD_CANCEL_ABORT]
     );
   }
 
@@ -635,7 +651,11 @@ function handleLineEvent_(ev) {
         return replyButtons_(token, hint, [{ label: "やり直す", text: CMD_RESET }]);
       }
 
-      return replyText_(token, hint + "このまま案内に沿ってお進みください。");
+      return replyButtons_(
+        token,
+        hint + "このまま案内に沿ってお進みください。",
+        [{ label: CMD_CANCEL, text: CMD_CANCEL }]
+      );
     }
 
     resetState_(userId);
@@ -649,6 +669,43 @@ function handleLineEvent_(ev) {
         { label: "対面鑑定", text: "対面鑑定" },
       ]
     );
+  }
+
+  // 起点ショートカット：形式が直接送られた場合（リッチメニュー/手入力）
+  if (!st.step && (text === "オンライン鑑定" || text === "対面鑑定")) {
+    const active = getActiveReservationForUser_(userId);
+    if (active) {
+      let stTxt = userStatusLabel_(active);
+      if (active.status === ST_HOLD) stTxt += holdRemainingText_(active);
+      let hint =
+        "すでに進行中のご予約があります。\n\n" +
+        `日時：${formatRangeText_(active)}\n` +
+        `状態：${stTxt}\n\n`;
+
+      if (active.status === ST_HOLD) {
+        hint += `変更する場合は「やり直す」を押してください。`;
+        return replyButtons_(token, hint, [{ label: "やり直す", text: CMD_RESET }]);
+      }
+
+      return replyButtons_(
+        token,
+        hint + "このまま案内に沿ってお進みください。",
+        [{ label: CMD_CANCEL, text: CMD_CANCEL }]
+      );
+    }
+
+    resetState_(userId);
+    if (text === "オンライン鑑定") {
+      setState_(userId, { format: "ONLINE", area: "", step: "分数", partPage: 0 });
+      return askMinutes_(token, userId);
+    }
+    setState_(userId, { format: "INPERSON", step: "エリア", partPage: 0 });
+    return replyButtons_(token, "エリアを選んでください。", [
+      { label: "名駅", text: "名駅" },
+      { label: "栄", text: "栄" },
+      { label: "金山", text: "金山" },
+      { label: BACK_TO_FORMAT, text: BACK_TO_FORMAT },
+    ]);
   }
 
   // (stは419行目で宣言済み)
@@ -893,13 +950,7 @@ function handleLineEvent_(ev) {
         ]
       );
 
-      // ★管理者通知（ユーザー返信の後に移動して体感速度向上）
-      try {
-        notifyAdmin_(
-          buildAdminSummary_(res) + "\n" +
-          `有効期限：${fmtHM_(expiresAt)}`
-        );
-      } catch (_) { /* 通知失敗でもユーザー体験に影響させない */ }
+      // 一時確保の管理通知は送らない（2通飛ぶ原因になるため）
 
       // ★ 重要イベントログ：一時確保作成（ユーザー返信後に移動）
       logToSheet_({
