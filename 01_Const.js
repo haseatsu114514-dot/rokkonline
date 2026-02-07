@@ -29,6 +29,7 @@ const CMD_RESET_LEGACY = "リセット";
 const CMD_PAID_REPORT = "支払い報告（支払いました）";
 const CMD_CANCEL = "キャンセルする";   // ミニマムで必須
 const CMD_INQUIRY = "問い合わせる";    // ★追加：問い合わせボタン
+const CMD_CHECK = "予約確認";          // ★追加：予約確認コマンド
 const CMD_CHANGE_DATE = "日時を変更する";           // ★追加：日時変更
 const CMD_CHANGE_DATE_YES = "はい、変更したい";     // ★追加：日時変更確認YES
 const CMD_CHANGE_DATE_NO = "やっぱりやめる";        // ★追加：日時変更確認NO
@@ -40,8 +41,8 @@ const PARTS = {
   "夜の部": { key: "夜の部", start: "19:00", end: "22:00" },
 };
 
-// ===== 料金（MAX90運用）=====
-const PRICE_TABLE = { 30: 3300, 45: 4800, 60: 6000, 75: 7500, 90: 9000 };
+// ===== 料金（MAX60運用）=====
+const PRICE_TABLE = { 30: 4500, 45: 6500, 60: 8000 };
 const INPERSON_EXTRA = 500;
 
 // ===== 支払い情報（オンライン用）=====

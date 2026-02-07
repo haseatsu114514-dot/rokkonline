@@ -304,11 +304,17 @@ function setFormReceivedByKey_(key, payMethod, formData) {
     }
 
     pushQuickReply_(r.userId,
-      "✅ 予約確定\n\n" +
+      "✅ 予約受付完了\n" +
+      "━━━━━━━━━━━━━━\n" +
+      `日時：${formatRangeText_(r)}\n` +
+      `分数：${r.minutes}分\n` +
+      `料金：${fmtYen_(r.price)}\n` +
+      "━━━━━━━━━━━━━━\n\n" +
       buildOnlinePayInfoText_(r.payMethod, r.startISO),
       [
         { type: "message", label: "支払い報告", text: CMD_PAID_REPORT },
         { type: "message", label: "日時を変更する", text: CMD_CHANGE_DATE },
+        { type: "message", label: "予約確認", text: CMD_CHECK },
       ]
     );
     return;
@@ -317,16 +323,21 @@ function setFormReceivedByKey_(key, payMethod, formData) {
   const p = INPERSON_PLACES[r.area] || null;
   const placeText = p ? `${p.name}\n住所：${p.address}` : "集合場所情報が見つかりませんでした。";
 
-  // ★改修：1通に統合（本文＋ボタン）
+  // ★改修：1通に統合（本文＋ボタン）+ 構造化
   pushQuickReply_(r.userId,
-    "✅ 予約確定\n\n" +
+    "✅ 予約確定\n" +
+    "━━━━━━━━━━━━━━\n" +
     `日時：${formatRangeText_(r)}\n` +
+    `分数：${r.minutes}分\n` +
+    `料金：${fmtYen_(r.price)}\n` +
     `場所：${placeText}\n` +
-    "支払：当日現地払い（現金/PayPay）\n\n" +
-    "⚠️ リマインドは送りませんので、\n" +
-    "この画面を【スクショ保存】してください。",
+    "支払：当日現地払い（現金/PayPay）\n" +
+    "━━━━━━━━━━━━━━\n\n" +
+    "⚠️【重要】リマインドは送信されません\n" +
+    "この画面を【スクショ保存】し、\nカレンダー等に登録してください。",
     [
       { type: "message", label: "日時を変更する", text: CMD_CHANGE_DATE },
+      { type: "message", label: "予約確認", text: CMD_CHECK },
     ]
   );
 
@@ -436,18 +447,19 @@ function cancelReservationByUser_(r) {
 // ===================================================
 function buildOnlineAfterPaidReportText_(r) {
   return (
-    "支払い報告を受け付けました。ありがとうございます。\n" +
-    "これで【予約確定】です！\n\n" +
+    "✅ 支払い確認 → 予約確定！\n" +
+    "━━━━━━━━━━━━━━\n" +
     `日時：${formatRangeText_(r)}\n` +
+    `分数：${r.minutes}分\n` +
     `料金：${fmtYen_(r.price)}\n` +
+    "━━━━━━━━━━━━━━\n\n" +
     `参加URL：${MEET_URL}\n\n` +
-    "✅ Google Meet は【アカウント不要／アプリ不要】で参加できます。\n" +
+    "Google Meet は【アカウント不要／アプリ不要】\n" +
     "・スマホ：URLを開く → ブラウザ参加\n" +
     "・PC：URLを開くだけでOK\n\n" +
-    "当日は上記URLから参加してください。\n" +
-    "お会いできるのを楽しみにしています！\n\n" +
+    "当日は上記URLから参加してください。\n\n" +
     "⚠️【重要】リマインドは送信されません\n" +
-    "この画面をスクリーンショットで保存し、カレンダー等に登録してください。"
+    "この画面を【スクショ保存】し、\nカレンダー等に登録してください。"
   );
 }
 
