@@ -44,6 +44,31 @@ function pickMinutesFromText_(text) {
   return m ? Number(m[1]) : 0;
 }
 
+// ユーザー表示用ステータス
+function userStatusLabel_(r) {
+  if (!r || !r.status) return "";
+  if (r.status === ST_HOLD) return "予約未完了（フォーム入力待ち）";
+  if (r.status === ST_WAIT_PAY) return "支払い待ち";
+  if (r.status === ST_PAID_REPORTED) return "支払い報告済み";
+  if (r.status === ST_PAID_CONFIRMED) return "予約確定";
+  if (r.status === ST_INPERSON_FIXED) return "予約確定";
+  if (r.status === ST_EXPIRED) return "期限切れ";
+  if (r.status === ST_CANCELLED) return "キャンセル";
+  if (r.status === ST_DONE) return "消化済み";
+  return r.status;
+}
+
+// フォーム入力期限（残り分数）表示
+function holdRemainingText_(r) {
+  if (!r || !r.holdExpiresISO) return "";
+  const exp = new Date(r.holdExpiresISO);
+  if (isNaN(exp.getTime())) return "";
+  const diff = exp.getTime() - Date.now();
+  if (diff <= 0) return "（期限切れ）";
+  const mins = Math.ceil(diff / 60000);
+  return `（残り${mins}分）`;
+}
+
 // ★追加：ロック取得のリトライ機構（高速化版）
 function tryLockWithRetry_(maxRetries, waitMs) {
   maxRetries = maxRetries || 3;
