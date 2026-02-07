@@ -505,13 +505,15 @@ function handleLineEvent_(ev) {
       date: r.dateYMD
     });
 
-    // 管理者通知
-    notifyAdmin_(
-      "【日時変更】\n" +
-      "ユーザーが日時変更を選択しました。\n" +
-      buildAdminSummary_(r) + "\n" +
-      "→ 旧予約をキャンセル済み"
-    );
+    // 管理者通知（失敗してもユーザーフローを止めない）
+    try {
+      notifyAdmin_(
+        "【日時変更】\n" +
+        "ユーザーが日時変更を選択しました。\n" +
+        buildAdminSummary_(r) + "\n" +
+        "→ 旧予約をキャンセル済み"
+      );
+    } catch (e) { console.error("notifyAdmin_ date change error:", e); }
 
     resetState_(userId);
 
@@ -874,8 +876,8 @@ function handleLineEvent_(ev) {
         price: res.price
       });
 
-      try { notifySheetUpsert_(res); } catch (e) { }
-      try { updateCalendarEventTitle_(res); } catch (e) { }
+      try { notifySheetUpsert_(res); } catch (e) { console.error("notifySheetUpsert_ hold error:", e); }
+      try { updateCalendarEventTitle_(res); } catch (e) { console.error("updateCalendarEventTitle_ hold error:", e); }
 
       resetState_(userId);
       return userReply;

@@ -44,13 +44,13 @@ function pickMinutesFromText_(text) {
   return m ? Number(m[1]) : 0;
 }
 
-// ★追加：ロック取得のリトライ機構
+// ★追加：ロック取得のリトライ機構（高速化版）
 function tryLockWithRetry_(maxRetries, waitMs) {
   maxRetries = maxRetries || 3;
-  waitMs = waitMs || 1000;
+  waitMs = waitMs || 300;
   const lock = LockService.getScriptLock();
   for (let i = 0; i < maxRetries; i++) {
-    if (lock.tryLock(3000)) return lock;
+    if (lock.tryLock(1500)) return lock;
     if (i < maxRetries - 1) Utilities.sleep(waitMs);
   }
   return null;

@@ -8,7 +8,8 @@ function saveReservation_(k, obj) {
 }
 function loadReservation_(k) {
   const s = PropertiesService.getScriptProperties().getProperty("res_" + k);
-  return s ? JSON.parse(s) : null;
+  if (!s) return null;
+  try { return JSON.parse(s); } catch (e) { console.error("loadReservation_ parse error key=" + k, e); return null; }
 }
 function getAllReservationKeys_() {
   return Object.keys(PropertiesService.getScriptProperties().getProperties())
