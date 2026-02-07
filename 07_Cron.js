@@ -21,47 +21,43 @@ function cronAll() {
 // 一時確保（HOLD）期限切れ掃除
 // ===================================================
 function cleanupHoldCron() {
-  const cal = CalendarApp.getCalendarById(CALENDAR_ID);
-  const now = new Date();
+  const now = Date.now();
+  const keys = getAllReservationKeys_();
 
-  const events = cal.getEvents(
-    new Date(now.getTime() - 6 * 3600000),
-    new Date(now.getTime() + 6 * 3600000)
-  );
+  keys.forEach(k => {
+    const r = loadReservation_(k);
+    if (!r || r.status !== ST_HOLD) return;
+    if (!r.holdExpiresISO) return;
 
-  events.forEach(ev => {
-    const title = ev.getTitle() || "";
-    const desc = ev.getDescription() || "";
-    // タイトル形式: 「【一時確保】予約（key）」または旧形式「HOLD key」
-    if (!title.includes("一時確保") && !title.startsWith("HOLD ")) return;
+    const exp = new Date(r.holdExpiresISO);
+    if (isNaN(exp.getTime()) || now <= exp.getTime()) return;
 
-    const exp = pickDesc_(desc, "expiresAt");
-    const key = pickDesc_(desc, "key") || title.replace("HOLD", "").trim();
-    const userId = pickDesc_(desc, "userId");
-
-    if (exp && Date.now() > new Date(exp).getTime()) {
-      try { ev.deleteEvent(); } catch (e) { console.error("cleanupHoldCron deleteEvent error:", e); }
-
-      if (!key) return;
-      const r = loadReservation_(key);
-      if (!r || r.status !== ST_HOLD || r.formReceived) return;
-
-      r.status = ST_EXPIRED;
-      r.updatedAtISO = nowISO_();
-      saveReservation_(key, r);
-      try { notifySheetUpsert_(r); } catch (e) { console.error("cleanupHoldCron notifySheet error:", e); }
-
-      if (userId) {
-        // ★停止：Push削減のため期限切れ通知は送らない
-        /*
-        pushText_(
-          userId,
-          "一時確保の期限が切れました。\n\n" +
-          "お手数ですが、もう一度「鑑定予約」からお申し込みください。"
-        );
-        */
+    // カレンダー削除（イベント時刻で検索）
+    try {
+      const start = new Date(r.startISO);
+      const end = new Date(r.endISO);
+      const cal = CalendarApp.getCalendarById(CALENDAR_ID);
+      const events = cal.getEvents(
+        new Date(start.getTime() - 60000),
+        new Date(end.getTime() + 60000)
+      );
+      for (let ev of events) {
+        const title = ev.getTitle() || "";
+        const desc = ev.getDescription() || "";
+        if (title.includes(r.key) || desc.includes(`key:${r.key}`) || desc.includes(`【受付キー】${r.key}`)) {
+          ev.deleteEvent();
+          break;
+        }
       }
+    } catch (e) {
+      console.error("cleanupHoldCron deleteEvent error:", e);
     }
+
+    r.status = ST_EXPIRED;
+    r.updatedAtISO = nowISO_();
+    saveReservation_(r.key, r);
+    try { notifySheetUpsert_(r); } catch (e) { console.error("cleanupHoldCron notifySheet error:", e); }
+    try { updateCalendarEventTitle_(r); } catch (e) { console.error("cleanupHoldCron updateCalendar error:", e); }
   });
 }
 
