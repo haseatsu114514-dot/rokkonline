@@ -263,24 +263,26 @@ function setFormReceivedByKey_(key, payMethod, formData) {
     payMethod: r.payMethod
   });
 
-  // ★管理Botに鑑定情報を転送
-  const formatText = r.format === "ONLINE" ? "オンライン" : "対面";
-  const birthTimeText = r.formData.birthTime ? `\n出生時間・場所：${r.formData.birthTime}` : "";
-  pushToAdminBot_(
-    "📋【予約確定】鑑定情報\n" +
-    "━━━━━━━━━━━━━━\n" +
-    `日時：${formatRangeText_(r)}\n` +
-    `形式：${formatText}${r.area ? "（" + r.area + "）" : ""}\n` +
-    `鑑定分数：${r.minutes}分\n` +
-    `料金：${fmtYen_(r.price)}\n` +
-    "━━━━━━━━━━━━━━\n" +
-    `お名前：${r.formData.name || "未入力"}\n` +
-    `性別：${r.formData.sex || "未入力"}\n` +
-    `生年月日：${r.formData.birthDate || "未入力"}` +
-    birthTimeText + "\n" +
-    `テーマ：${r.formData.topics || "未選択"}\n` +
-    `詳細：${r.formData.details || "なし"}`
-  );
+  // ★管理Botに鑑定情報を転送（try-catchで保護：失敗してもユーザーフローを止めない）
+  try {
+    const formatText = r.format === "ONLINE" ? "オンライン" : "対面";
+    const birthTimeText = r.formData.birthTime ? `\n出生時間・場所：${r.formData.birthTime}` : "";
+    pushToAdminBot_(
+      "📋【予約確定】鑑定情報\n" +
+      "━━━━━━━━━━━━━━\n" +
+      `日時：${formatRangeText_(r)}\n` +
+      `形式：${formatText}${r.area ? "（" + r.area + "）" : ""}\n` +
+      `鑑定分数：${r.minutes}分\n` +
+      `料金：${fmtYen_(r.price)}\n` +
+      "━━━━━━━━━━━━━━\n" +
+      `お名前：${r.formData.name || "未入力"}\n` +
+      `性別：${r.formData.sex || "未入力"}\n` +
+      `生年月日：${r.formData.birthDate || "未入力"}` +
+      birthTimeText + "\n" +
+      `テーマ：${r.formData.topics || "未選択"}\n` +
+      `詳細：${r.formData.details || "なし"}`
+    );
+  } catch (e) { console.error("pushToAdminBot_ in setFormReceivedByKey_ error:", e); }
 
   try { notifySheetUpsert_(r); } catch (e) { }
   try { updateCalendarEventTitle_(r); } catch (e) { }

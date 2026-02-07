@@ -31,14 +31,16 @@ function cleanupHoldCron() {
 
   events.forEach(ev => {
     const title = ev.getTitle() || "";
-    if (!title.startsWith("HOLD ")) return;
+    const desc = ev.getDescription() || "";
+    // タイトル形式: 「【一時確保】予約（key）」または旧形式「HOLD key」
+    if (!title.includes("一時確保") && !title.startsWith("HOLD ")) return;
 
-    const exp = pickDesc_(ev.getDescription() || "", "expiresAt");
-    const key = title.replace("HOLD", "").trim() || pickDesc_(ev.getDescription() || "", "key");
-    const userId = pickDesc_(ev.getDescription() || "", "userId");
+    const exp = pickDesc_(desc, "expiresAt");
+    const key = pickDesc_(desc, "key") || title.replace("HOLD", "").trim();
+    const userId = pickDesc_(desc, "userId");
 
     if (exp && Date.now() > new Date(exp).getTime()) {
-      try { ev.deleteEvent(); } catch (_) { }
+      try { ev.deleteEvent(); } catch (e) { console.error("cleanupHoldCron deleteEvent error:", e); }
 
       if (!key) return;
       const r = loadReservation_(key);
@@ -47,7 +49,7 @@ function cleanupHoldCron() {
       r.status = ST_EXPIRED;
       r.updatedAtISO = nowISO_();
       saveReservation_(key, r);
-      try { notifySheetUpsert_(r); } catch (_) { }
+      try { notifySheetUpsert_(r); } catch (e) { console.error("cleanupHoldCron notifySheet error:", e); }
 
       if (userId) {
         // ★停止：Push削減のため期限切れ通知は送らない
