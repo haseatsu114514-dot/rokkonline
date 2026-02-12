@@ -258,7 +258,7 @@ function getAvailableMinutesForPart_NoCross_(st) {
   const startBase = new Date(base); startBase.setHours(sh, sm, 0, 0);
   const endLimit = new Date(base); endLimit.setHours(eh, em, 0, 0);
 
-  const options = [30, 45, 60];
+  const options = [30, 60];
   const okSet = new Set();
 
   for (let t = new Date(startBase); t < endLimit; t = new Date(t.getTime() + SLOT_STEP_MIN * 60000)) {
@@ -285,7 +285,7 @@ function askMinutes_(token, userId) {
   const isInperson = st.format === "INPERSON";
 
   // 全ての分数オプションを表示（後で日付・部で絞る）
-  const options = [30, 45, 60];
+  const options = [30, 60];
 
   const labels = options.map((mins) => {
     const basePrice = PRICE_TABLE[mins];
@@ -294,8 +294,8 @@ function askMinutes_(token, userId) {
   });
   labels.push(BACK_TO_FORMAT);
 
-  const extraNote = isInperson
-    ? "\n※同席料+500円込"
+  const extraNote = (isInperson && INPERSON_EXTRA > 0)
+    ? `\n※同席料+${INPERSON_EXTRA}円込`
     : "";
 
   return replyQuickReplyWithHeader_(
@@ -797,13 +797,13 @@ function handleLineEvent_(ev) {
   // ③ 分数 → 日付へ
   if (st.step === "分数") {
     const minutes = pickMinutesFromText_(text);
-    if ([30, 45, 60].includes(minutes)) {
+    if ([30, 60].includes(minutes)) {
       const isInperson = st.format === "INPERSON";
       const price = isInperson ? (PRICE_TABLE[minutes] + INPERSON_EXTRA) : PRICE_TABLE[minutes];
       setState_(userId, { minutes, price, step: "日付" });
       return askDate_(token, userId);
     }
-    return replyText_(token, "下部の候補（30分/45分/60分）から選んでください。");
+    return replyText_(token, "下部の候補（30分/60分）から選んでください。");
   }
 
   // ④ 日付

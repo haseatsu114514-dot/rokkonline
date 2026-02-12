@@ -459,7 +459,7 @@ function test_calendarIntegration() {
     format: "ONLINE",
     area: "",
     minutes: 30,
-    price: 3300,
+    price: PRICE_TABLE[30],
     status: ST_PAID_CONFIRMED,
     startISO: tomorrow.toISOString(),
     endISO: end.toISOString(),

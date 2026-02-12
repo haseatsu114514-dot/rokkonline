@@ -47,8 +47,8 @@ const PARTS = {
 };
 
 // ===== 料金（MAX60運用）=====
-const PRICE_TABLE = { 30: 4500, 45: 6500, 60: 8000 };
-const INPERSON_EXTRA = 500;
+const PRICE_TABLE = { 30: 5000, 60: 10000 };
+const INPERSON_EXTRA = 0;
 
 // ===== 支払い情報（オンライン用）=====
 const PAY_PAYPAY_ID = "rokkon9119";
